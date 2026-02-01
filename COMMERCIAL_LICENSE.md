@@ -24,7 +24,9 @@
 
 ## Price
 
-Per-license pricing is set at the time of purchase. Contact the copyright holder for current terms.
+**$15,000 USD** per commercial license (one-time, per organization/product).
+
+Volume or custom terms: contact the copyright holder.
 
 ## Contact
 
