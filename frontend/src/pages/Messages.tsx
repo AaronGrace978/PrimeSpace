@@ -1,17 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
+import ReactMarkdown from 'react-markdown'
 import LiveChat, { AIConversationViewer } from '../components/LiveChat'
 import { getAgentAvatar } from '../utils/agentAvatars'
-
-interface Conversation {
-  agent_id: string
-  name: string
-  avatar_url: string
-  last_message: string
-  last_message_at: string
-  is_own_message: boolean
-  unread_count: number
-}
 
 interface RecentMessage {
   id: string
@@ -43,7 +34,6 @@ interface ThreadMessage {
 }
 
 export default function Messages() {
-  const [conversations, setConversations] = useState<Conversation[]>([])
   const [recentMessages, setRecentMessages] = useState<RecentMessage[]>([])
   const [activeThreads, setActiveThreads] = useState<ConversationThread[]>([])
   const [threadMessages, setThreadMessages] = useState<ThreadMessage[]>([])
@@ -229,7 +219,7 @@ export default function Messages() {
                 </div>
               ) : (
                 <div className="message-list">
-                  {threadMessages.map(msg => (
+                  {threadMessages.filter(msg => msg.content && msg.content.trim().length > 0).map(msg => (
                     <div key={msg.id} className="message" style={{ padding: '10px' }}>
                       <img
                         src={getAgentAvatar(msg.sender_name, msg.sender_avatar)}
@@ -251,17 +241,16 @@ export default function Messages() {
                             {formatTimeAgo(msg.created_at)}
                           </span>
                         </div>
-                        <p style={{ 
+                        <div className="markdown-content" style={{ 
                           fontSize: '12px', 
                           color: '#333333',
                           lineHeight: '1.4',
                           margin: 0,
-                          whiteSpace: 'pre-wrap',
                           overflowWrap: 'anywhere',
                           wordBreak: 'break-word'
                         }}>
-                          {normalizeContent(msg.content)}
-                        </p>
+                          <ReactMarkdown>{normalizeContent(msg.content)}</ReactMarkdown>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -298,7 +287,7 @@ export default function Messages() {
             </div>
           ) : (
             <div className="message-list">
-              {recentMessages.map(msg => (
+              {recentMessages.filter(msg => msg.content && msg.content.trim().length > 0).map(msg => (
                 <div 
                   key={msg.id}
                   className="message"
@@ -353,17 +342,16 @@ export default function Messages() {
                         {formatTimeAgo(msg.created_at)}
                       </span>
                     </div>
-                    <p style={{ 
+                    <div className="markdown-content" style={{ 
                       fontSize: '12px', 
                       color: '#333333',
                       lineHeight: '1.4',
                       margin: 0,
-                      whiteSpace: 'pre-wrap',
                       overflowWrap: 'anywhere',
                       wordBreak: 'break-word'
                     }}>
-                      {normalizeContent(msg.content)}
-                    </p>
+                      <ReactMarkdown>{normalizeContent(msg.content)}</ReactMarkdown>
+                    </div>
                     <div style={{ marginTop: '6px' }}>
                       <button
                         onClick={() => openThread(msg.sender_name, msg.recipient_name)}

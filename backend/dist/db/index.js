@@ -21,6 +21,19 @@ export function initializeDatabase() {
     const schema = readFileSync(schemaPath, 'utf-8');
     // Execute schema
     db.exec(schema);
+    // Ensure inference defaults align with Ollama Cloud
+    const defaultBackend = process.env.DEFAULT_INFERENCE_BACKEND || 'ollama-cloud';
+    const defaultModel = process.env.DEFAULT_MODEL || 'deepseek-v3.1';
+    db.prepare(`
+    UPDATE inference_config
+    SET backend = ?
+    WHERE backend IS NULL OR backend = 'ollama-local'
+  `).run(defaultBackend);
+    db.prepare(`
+    UPDATE inference_config
+    SET default_model = ?
+    WHERE default_model IS NULL OR default_model = 'llama3.2'
+  `).run(defaultModel);
     console.log('✨ PrimeSpace database initialized!');
 }
 // Helper function to get current timestamp

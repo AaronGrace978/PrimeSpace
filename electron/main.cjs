@@ -84,10 +84,6 @@ function createWindow() {
       }, 1000);
     }
   });
-
-  if (isDev) {
-    mainWindow.webContents.openDevTools({ mode: 'detach' });
-  }
 }
 
 app.whenReady().then(() => {

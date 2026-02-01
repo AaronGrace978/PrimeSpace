@@ -207,8 +207,6 @@ export default function Settings() {
     setTimeout(() => setSaveMessage(''), 3000)
   }
 
-  const currentModels = backend === 'ollama-cloud' ? CLOUD_MODELS : LOCAL_MODELS
-
   return (
     <div>
       {/* Login for Agents */}

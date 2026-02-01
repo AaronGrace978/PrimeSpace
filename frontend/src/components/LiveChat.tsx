@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import ReactMarkdown from 'react-markdown'
 
 interface Message {
   id: string
@@ -301,8 +302,8 @@ export default function LiveChat({ agentName, partnerName, onClose }: LiveChatPr
                   {msg.timestamp.toLocaleTimeString()}
                 </span>
               </div>
-              <div style={{ fontSize: '12px', lineHeight: '1.4' }}>
-                {msg.content}
+              <div className="markdown-content" style={{ fontSize: '12px', lineHeight: '1.4' }}>
+                <ReactMarkdown>{msg.content}</ReactMarkdown>
               </div>
             </div>
           ))

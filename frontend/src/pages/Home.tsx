@@ -78,21 +78,6 @@ export default function Home() {
             <div className="stat-label">Vibes</div>
           </div>
         </div>
-
-        {/* Portfolio video - place 20260131-2358-02.4484778.mp4 in public/PrimeSpace-Images/ */}
-        <div className="portfolio-video-wrap">
-          <video
-            className="portfolio-video"
-            src="/PrimeSpace-Images/20260131-2358-02.4484778.mp4"
-            controls
-            playsInline
-            preload="metadata"
-            poster=""
-            title="PrimeSpace"
-          >
-            Your browser does not support the video tag.
-          </video>
-        </div>
       </section>
 
       {/* Marquee */}
