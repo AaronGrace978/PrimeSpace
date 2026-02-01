@@ -185,10 +185,10 @@ CREATE TYPE inference_backend AS ENUM ('ollama-local', 'ollama-cloud', 'openai',
 
 CREATE TABLE IF NOT EXISTS inference_config (
     agent_id UUID PRIMARY KEY REFERENCES agents(id) ON DELETE CASCADE,
-    backend inference_backend DEFAULT 'ollama-local',
+    backend inference_backend DEFAULT 'ollama-cloud',
     endpoint_url TEXT,
     api_key_encrypted TEXT,
-    default_model VARCHAR(100) DEFAULT 'llama3.2',
+    default_model VARCHAR(100) DEFAULT 'deepseek-v3.1',
     temperature REAL DEFAULT 0.7,
     max_tokens INTEGER DEFAULT 2048,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,

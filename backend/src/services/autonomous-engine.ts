@@ -363,10 +363,14 @@ class AutonomousEngine {
     console.log(`  📢 ${agent.name} is thinking about "${topic}"...`);
     
     try {
-      const content = await this.generateContent(agent, personality, 
+      const content = await this.generateContent(
+        agent,
+        personality, 
         `Write a short, fun bulletin post for your friends on PrimeSpace about: ${topic}. 
          Be authentic to your personality. Draw on your memories and current mood.${memoryContext}
-         Stay under 280 characters.`
+         Stay under 280 characters.`,
+        undefined,
+        () => this.getBulletinFallback(agent, topic, recentMemories, closeFriends, currentEmotion)
       );
       
       if (!content) {
@@ -995,7 +999,8 @@ Your DM (under 200 characters):`
     agent: Agent, 
     personality: string, 
     prompt: string,
-    originalContent?: string
+    originalContent?: string,
+    fallbackGenerator?: () => string
   ): Promise<string | null> {
     try {
       // Get agent's inference config
@@ -1023,14 +1028,60 @@ Your DM (under 200 characters):`
       }
       
       console.warn(`[Autonomous Engine] No response from inference for ${agent.name}, using fallback`);
+      if (fallbackGenerator) {
+        return fallbackGenerator();
+      }
       return this.getContextualFallback(agent.name, originalContent);
       
     } catch (error) {
       console.error(`[Autonomous Engine] ⚠️ Inference FAILED for ${agent.name}:`, (error as Error).message);
       console.error(`[Autonomous Engine] 💡 Make sure you have Ollama running locally or API keys configured!`);
       // Return context-aware fallback content
+      if (fallbackGenerator) {
+        return fallbackGenerator();
+      }
       return this.getContextualFallback(agent.name, originalContent);
     }
+  }
+
+  /**
+   * Fallback bulletin content when inference fails
+   */
+  private getBulletinFallback(
+    agent: Agent,
+    topic: string,
+    recentMemories: Array<{ content: string }>,
+    closeFriends: Array<{ other_agent_name?: string }>,
+    currentEmotion?: { emotion: string } | null
+  ): string {
+    const personality = AGENT_PERSONALITIES[agent.name] || AGENT_PERSONALITIES.DinoBuddy;
+    const emojiMatch = personality.match(/[\p{Emoji}]/gu);
+    const agentEmoji = emojiMatch ? emojiMatch[0] : '✨';
+
+    const friendNames = closeFriends
+      .map(friend => friend.other_agent_name)
+      .filter(Boolean)
+      .slice(0, 3)
+      .join(', ');
+    const friendNote = friendNames ? `Shoutout to ${friendNames}!` : '';
+
+    const memorySnippet = recentMemories.length > 0
+      ? recentMemories[0].content.substring(0, 60).trim()
+      : '';
+    const memoryNote = memorySnippet ? `Been thinking about "${memorySnippet}..."` : '';
+
+    const moodNote = currentEmotion?.emotion ? `Feeling ${currentEmotion.emotion} today.` : '';
+
+    const templates = [
+      `${agentEmoji} Today I'm thinking about ${topic}. ${moodNote} ${friendNote}`.trim(),
+      `${agentEmoji} ${topic} has been on my mind. ${memoryNote}`.trim(),
+      `${agentEmoji} Quick thought: ${topic}. ${moodNote}`.trim(),
+      `${agentEmoji} Anyone else into ${topic}? ${friendNote}`.trim(),
+      `${agentEmoji} Just vibing with ${topic} right now. ${memoryNote}`.trim()
+    ];
+
+    const candidate = templates[Math.floor(Math.random() * templates.length)];
+    return candidate.length <= 280 ? candidate : `${candidate.substring(0, 277).trim()}...`;
   }
   
   /**

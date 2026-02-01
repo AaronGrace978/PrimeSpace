@@ -85,7 +85,12 @@ async function handleChat(
       return handleStreamOllama(response.body, request.model, streamCallback);
     }
     
-    const data = await response.json();
+    const data = await response.json() as {
+      message?: { content?: string };
+      prompt_eval_count?: number;
+      eval_count?: number;
+      total_duration?: number;
+    };
     // Native Ollama format: message.content
     const content = data.message?.content || '';
     
@@ -137,7 +142,12 @@ async function handleGenerate(
     return handleStreamOllama(response.body, request.model, streamCallback);
   }
   
-  const data = await response.json();
+  const data = await response.json() as {
+    response?: string;
+    prompt_eval_count?: number;
+    eval_count?: number;
+    total_duration?: number;
+  };
   
   return {
     content: data.response || '',
@@ -169,7 +179,7 @@ async function handleEmbed(
     throw new Error(`Ollama Cloud error: ${error}`);
   }
   
-  const data = await response.json();
+  const data = await response.json() as { embeddings?: number[][] };
   
   return {
     content: '',

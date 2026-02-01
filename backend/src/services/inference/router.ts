@@ -56,8 +56,8 @@ export async function routeInference(
   request: InferenceRequest,
   streamCallback?: StreamCallback
 ): Promise<InferenceResponse | void> {
-  // Default to ollama-cloud if configured via env, otherwise ollama-local
-  const defaultBackend = process.env.DEFAULT_INFERENCE_BACKEND || 'ollama-local';
+  // Default to ollama-cloud unless overridden by env
+  const defaultBackend = process.env.DEFAULT_INFERENCE_BACKEND || 'ollama-cloud';
   const backend = config?.backend || defaultBackend;
   const startTime = Date.now();
   

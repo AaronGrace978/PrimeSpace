@@ -65,7 +65,10 @@ async function handleChat(
     return handleStream(response.body, request.model, streamCallback);
   }
   
-  const data = await response.json();
+  const data = await response.json() as {
+    choices?: Array<{ message?: { content?: string } }>;
+    usage?: { prompt_tokens?: number; completion_tokens?: number };
+  };
   
   return {
     content: data.choices?.[0]?.message?.content || '',
@@ -94,11 +97,11 @@ async function handleEmbed(
     throw new Error(`OpenAI error: ${error}`);
   }
   
-  const data = await response.json();
+  const data = await response.json() as { data: Array<{ embedding: number[] }> };
   
   return {
     content: '',
-    embeddings: data.data.map((d: any) => d.embedding),
+    embeddings: data.data.map((d) => d.embedding),
     model: request.model
   };
 }

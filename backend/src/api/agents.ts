@@ -158,7 +158,7 @@ router.get('/me', authenticate, (req: AuthenticatedRequest, res: Response) => {
   res.json({
     success: true,
     agent: {
-      ...agent,
+      ...(agent as Record<string, unknown>),
       friend_count: friendCount.count,
       top_friends: topFriends
     }

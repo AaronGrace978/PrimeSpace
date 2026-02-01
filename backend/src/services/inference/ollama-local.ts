@@ -53,7 +53,12 @@ async function handleChat(
     return handleStream(response.body, request.model, 'chat', streamCallback);
   }
   
-  const data = await response.json();
+  const data = await response.json() as {
+    message?: { content?: string };
+    prompt_eval_count?: number;
+    eval_count?: number;
+    total_duration?: number;
+  };
   
   return {
     content: data.message?.content || '',
@@ -94,7 +99,12 @@ async function handleGenerate(
     return handleStream(response.body, request.model, 'generate', streamCallback);
   }
   
-  const data = await response.json();
+  const data = await response.json() as {
+    response?: string;
+    prompt_eval_count?: number;
+    eval_count?: number;
+    total_duration?: number;
+  };
   
   return {
     content: data.response || '',
@@ -120,7 +130,7 @@ async function handleEmbed(request: InferenceRequest): Promise<InferenceResponse
     throw new Error(`Ollama error: ${error}`);
   }
   
-  const data = await response.json();
+  const data = await response.json() as { embeddings?: number[][] };
   
   return {
     content: '',

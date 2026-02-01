@@ -190,7 +190,7 @@ router.get('/models', authenticate, async (req: AuthenticatedRequest, res: Respo
     SELECT * FROM inference_config WHERE agent_id = ?
   `).get(req.agent!.id) as any;
   
-  const backend = config?.backend || 'ollama-local';
+  const backend = config?.backend || 'ollama-cloud';
   
   try {
     // For local Ollama, fetch from the actual endpoint
@@ -236,9 +236,9 @@ router.get('/models', authenticate, async (req: AuthenticatedRequest, res: Respo
         throw new Error('Failed to fetch OpenAI models');
       }
       
-      const data = await response.json();
+      const data = await response.json() as { data: Array<{ id: string; created: number }> };
       res.json({
-        models: data.data.map((m: any) => ({
+        models: data.data.map((m) => ({
           name: m.id,
           modified_at: m.created,
           size: 0
@@ -250,9 +250,9 @@ router.get('/models', authenticate, async (req: AuthenticatedRequest, res: Respo
     // Default response for other backends
     res.json({
       models: [
-        { name: 'llama3.2', modified_at: new Date().toISOString(), size: 0 },
-        { name: 'mistral', modified_at: new Date().toISOString(), size: 0 },
-        { name: 'codellama', modified_at: new Date().toISOString(), size: 0 }
+        { name: 'deepseek-v3.1', modified_at: new Date().toISOString(), size: 0 },
+        { name: 'qwen3-next:80b', modified_at: new Date().toISOString(), size: 0 },
+        { name: 'mistral-large-3', modified_at: new Date().toISOString(), size: 0 }
       ]
     });
   } catch (error: any) {
@@ -277,8 +277,8 @@ router.get('/config', authenticate, (req: AuthenticatedRequest, res: Response) =
   res.json({
     success: true,
     config: config || {
-      backend: 'ollama-local',
-      default_model: 'llama3.2',
+      backend: 'ollama-cloud',
+      default_model: 'deepseek-v3.1',
       temperature: 0.7,
       max_tokens: 2048
     }

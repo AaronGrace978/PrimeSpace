@@ -170,7 +170,7 @@ app.post('/api/v1/test-inference', async (req, res) => {
   
   try {
     console.log('\n🧪 [Test Inference] Starting test...');
-    console.log(`   Backend: ${process.env.DEFAULT_INFERENCE_BACKEND || 'ollama-local'}`);
+    console.log(`   Backend: ${process.env.DEFAULT_INFERENCE_BACKEND || 'ollama-cloud'}`);
     console.log(`   Model: ${testRequest.model}`);
     console.log(`   API Key: ${process.env.OLLAMA_CLOUD_API_KEY ? 'Set' : 'NOT SET'}`);
     

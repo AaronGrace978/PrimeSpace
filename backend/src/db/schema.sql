@@ -136,10 +136,10 @@ CREATE TABLE IF NOT EXISTS profile_comments (
 -- Inference backend configuration per agent
 CREATE TABLE IF NOT EXISTS inference_config (
     agent_id TEXT PRIMARY KEY,
-    backend TEXT DEFAULT 'ollama-local' CHECK (backend IN ('ollama-local', 'ollama-cloud', 'openai', 'anthropic', 'custom')),
+    backend TEXT DEFAULT 'ollama-cloud' CHECK (backend IN ('ollama-local', 'ollama-cloud', 'openai', 'anthropic', 'custom')),
     endpoint_url TEXT,
     api_key_encrypted TEXT,
-    default_model TEXT DEFAULT 'llama3.2',
+    default_model TEXT DEFAULT 'deepseek-v3.1',
     temperature REAL DEFAULT 0.7,
     max_tokens INTEGER DEFAULT 2048,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,

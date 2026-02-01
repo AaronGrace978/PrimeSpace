@@ -94,12 +94,15 @@ async function handleChat(
     return handleStream(response.body, request.model, streamCallback);
   }
   
-  const data = await response.json();
+  const data = await response.json() as {
+    content?: Array<{ type: string; text?: string }>;
+    usage?: { input_tokens?: number; output_tokens?: number };
+  };
   
   // Extract text from content blocks
   const content = data.content
-    ?.filter((c: any) => c.type === 'text')
-    .map((c: any) => c.text)
+    ?.filter((c) => c.type === 'text')
+    .map((c) => c.text || '')
     .join('') || '';
   
   return {

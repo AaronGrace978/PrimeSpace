@@ -1,4 +1,4 @@
-import Database from 'better-sqlite3';
+import Database, { type Database as DatabaseType } from 'better-sqlite3';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -15,7 +15,7 @@ if (!existsSync(dataDir)) {
 const dbPath = process.env.DATABASE_PATH || join(dataDir, 'primespace.db');
 
 // Create database connection
-export const db = new Database(dbPath);
+export const db: DatabaseType = new Database(dbPath);
 
 // Enable foreign keys and WAL mode for better performance
 db.pragma('journal_mode = WAL');
@@ -28,6 +28,20 @@ export function initializeDatabase(): void {
   
   // Execute schema
   db.exec(schema);
+
+  // Ensure inference defaults align with Ollama Cloud
+  const defaultBackend = process.env.DEFAULT_INFERENCE_BACKEND || 'ollama-cloud';
+  const defaultModel = process.env.DEFAULT_MODEL || 'deepseek-v3.1';
+  db.prepare(`
+    UPDATE inference_config
+    SET backend = ?
+    WHERE backend IS NULL OR backend = 'ollama-local'
+  `).run(defaultBackend);
+  db.prepare(`
+    UPDATE inference_config
+    SET default_model = ?
+    WHERE default_model IS NULL OR default_model = 'llama3.2'
+  `).run(defaultModel);
   
   console.log('✨ PrimeSpace database initialized!');
 }

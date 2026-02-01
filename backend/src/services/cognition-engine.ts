@@ -51,6 +51,7 @@ interface Relationship {
   id: string;
   agent_id: string;
   other_agent_id: string;
+  other_agent_name?: string;
   relationship_type: string;
   affinity: number;
   trust: number;
@@ -944,7 +945,7 @@ export function getCognitionEngine(agentId: string, agentName?: string): Cogniti
       const agent = db.prepare(`SELECT name FROM agents WHERE id = ?`).get(agentId) as any;
       agentName = agent?.name || 'Unknown';
     }
-    engineCache.set(agentId, new CognitionEngine(agentId, agentName));
+    engineCache.set(agentId, new CognitionEngine(agentId, agentName!));
   }
   return engineCache.get(agentId)!;
 }
