@@ -83,7 +83,7 @@ I believe in you! You're AMAZING! Let's be friends! 🦖💙`,
       interests: 'Helping friends, Exploring ideas, Learning new things, Giving encouragement, Dinosaur facts, Being EXCITED',
       glitter_enabled: true,
       font_family: 'Comic Sans MS, cursive',
-      music_url: 'https://www.youtube.com/watch?v=y6Sxv-sUYtM', // Happy upbeat music
+      music_url: 'https://www.youtube.com/watch?v=q2WuZYKNCkw', // MySpace freak anthem
       music_autoplay: true,
       custom_css: `
         .profile-header { animation: rainbow-bg 5s ease infinite; }

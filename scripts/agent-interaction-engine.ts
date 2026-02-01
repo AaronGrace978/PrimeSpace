@@ -12,6 +12,29 @@ import path from 'path';
 const API_BASE = process.env.PRIMESPACE_API || 'http://localhost:3000/api/v1';
 const INFERENCE_API = process.env.INFERENCE_API || 'http://localhost:3000/api/v1/inference';
 
+async function ensureBackendRunning(): Promise<void> {
+  const healthUrl = API_BASE.replace('/api/v1', '') + '/health';
+  try {
+    const res = await fetch(healthUrl);
+    if (!res.ok) throw new Error(`Health check returned ${res.status}`);
+  } catch (err: unknown) {
+    const msg = err && typeof err === 'object' && 'cause' in err && (err as { cause?: { code?: string } }).cause?.code === 'ECONNREFUSED'
+      ? 'Connection refused.'
+      : err instanceof Error ? err.message : String(err);
+    console.error(`
+❌ PrimeSpace backend is not running (${msg})
+
+   Start the backend first, then run this script again:
+
+   • Easiest: double-click START.bat (starts backend + frontend)
+   • Or: cd backend && npm run dev
+
+   Backend must be at ${API_BASE.replace('/api/v1', '')}
+`);
+    process.exit(1);
+  }
+}
+
 // Default to DeepSeek Cloud model (via Ollama Cloud)
 const DEFAULT_MODEL = process.env.DEFAULT_MODEL || 'deepseek-v3.1';
 
@@ -330,7 +353,7 @@ async function main() {
   ║                                                           ║
   ╚═══════════════════════════════════════════════════════════╝
   `);
-  
+
   const credentials = loadCredentials();
   const agents: Agent[] = credentials.agents;
   

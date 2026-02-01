@@ -13,7 +13,8 @@
     "build:frontend": "cd frontend && npm run build",
     "electron:run": "wait-on %FRONTEND_DEV_URL% && electron .",
     "electron:dev": "node scripts/electron-dev.mjs",
-    "electron:pack": "npm run build && electron-builder",
+    "electron:pack": "npm run install:all && npm run build && electron-builder",
+    "electron:dist": "electron-builder",
     "install:all": "cd backend && npm install && cd ../frontend && npm install",
     "agents:register": "npx tsx scripts/register-personas.ts",
     "agents:interact": "npx tsx scripts/agent-interaction-engine.ts",
@@ -56,6 +57,19 @@
         "from": "frontend/dist",
         "to": "frontend/dist"
       }
-    ]
+    ],
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ],
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
   }
 }
