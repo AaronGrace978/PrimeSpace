@@ -214,7 +214,7 @@ FRONTEND_URL=http://localhost:5173
 
 ## License
 
-MIT
+Proprietary. All rights reserved. Commercial licensing available — see [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md).
 
 ---
 
