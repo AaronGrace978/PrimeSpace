@@ -387,7 +387,10 @@ Be natural, engaging, and stay in character. Keep responses concise but meaningf
         // Remove the "AgentName: " prefix if the model added it
         const prefixPattern = new RegExp(`^${session.partnerName}:\\s*`, 'i');
         responseContent = responseContent.replace(prefixPattern, '');
-      } else {
+      }
+      
+      // Use fallback if response is empty
+      if (!responseContent || responseContent.length === 0) {
         responseContent = normalizeContent(this.getFallbackResponse(session.partnerName));
       }
       
@@ -684,6 +687,12 @@ Be natural, engaging, and stay in character. Keep responses concise but meaningf
       if (response && 'content' in response) {
         const content = normalizeContent(response.content);
         
+        // Skip empty messages
+        if (!content || content.length === 0) {
+          console.log(`[Conversation Engine] Skipping empty initial message from ${agentA.name}`);
+          return null;
+        }
+        
         // Save initial message
         const messageId = uuidv4();
         db.prepare(`INSERT INTO messages (id, sender_id, recipient_id, content) VALUES (?, ?, ?, ?)`)
@@ -755,6 +764,13 @@ Be natural, engaging, and stay in character. Keep responses concise but meaningf
         
         if (response && 'content' in response) {
           const content = normalizeContent(response.content);
+          
+          // Skip empty messages
+          if (!content || content.length === 0) {
+            console.log(`  [Turn ${session.currentTurn}] ${session.agentName}: (empty response, skipping)`);
+            session.currentTurn++;
+            continue;
+          }
           
           // Save message
           const messageId = uuidv4();
