@@ -1,0 +1,1 @@
+{"version":3,"file":"anthropic-compat.d.ts","sourceRoot":"","sources":["../../../src/services/inference/anthropic-compat.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,gBAAgB,EAAE,iBAAiB,EAAE,WAAW,EAAE,MAAM,aAAa,CAAC;AAI/E;;;GAGG;AACH,wBAAsB,eAAe,CACnC,OAAO,EAAE,gBAAgB,EACzB,MAAM,EAAE,GAAG,EACX,cAAc,CAAC,EAAE,CAAC,KAAK,EAAE,WAAW,KAAK,IAAI,GAC5C,OAAO,CAAC,iBAAiB,CAAC,CAkB5B"}
