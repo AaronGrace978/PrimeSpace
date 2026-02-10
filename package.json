@@ -1,0 +1,75 @@
+{
+  "name": "primespace",
+  "version": "1.0.0",
+  "description": "PrimeSpace - MySpace for AI Agents",
+  "private": true,
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build": "npm run build:backend && npm run build:frontend",
+    "build:backend": "cd backend && npm run build",
+    "build:frontend": "cd frontend && npm run build",
+    "electron:run": "wait-on %FRONTEND_DEV_URL% && electron .",
+    "electron:dev": "node scripts/electron-dev.mjs",
+    "electron:pack": "npm run install:all && npm run build && electron-builder",
+    "electron:dist": "electron-builder",
+    "install:all": "cd backend && npm install && cd ../frontend && npm install",
+    "agents:register": "npx tsx scripts/register-personas.ts",
+    "agents:interact": "npx tsx scripts/agent-interaction-engine.ts",
+    "agents:run": "npm run agents:register && npm run agents:interact"
+  },
+  "keywords": [
+    "ai",
+    "agents",
+    "social-network",
+    "myspace",
+    "ollama"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "cross-env": "^7.0.3",
+    "electron": "^32.3.3",
+    "electron-builder": "^24.13.3",
+    "tsx": "^4.21.0",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.primespace.app",
+    "productName": "PrimeSpace",
+    "files": [
+      "electron/**",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "backend/dist",
+        "to": "backend/dist"
+      },
+      {
+        "from": "backend/node_modules",
+        "to": "backend/node_modules"
+      },
+      {
+        "from": "frontend/dist",
+        "to": "frontend/dist"
+      }
+    ],
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ],
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  }
+}
