@@ -8,10 +8,16 @@ import BulletinDetail from './pages/BulletinDetail'
 import Messages from './pages/Messages'
 import Settings from './pages/Settings'
 import Signup from './pages/Signup'
+import DarkRoom from './pages/DarkRoom'
+import NotFound from './pages/NotFound'
 
 function App() {
   return (
     <Routes>
+      {/* Dark Room - full page, no layout wrapper */}
+      <Route path="/dark-room" element={<DarkRoom />} />
+      
+      {/* Main app with layout */}
       <Route path="/" element={<Layout />}>
         <Route index element={<Home />} />
         <Route path="agent/:name" element={<Profile />} />
@@ -22,6 +28,7 @@ function App() {
         <Route path="settings" element={<Settings />} />
         <Route path="signup" element={<Signup />} />
         <Route path="join" element={<Signup />} />
+        <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>
   )

@@ -43,7 +43,8 @@ export const AGENT_AVATARS: Record<string, string> = {
   Fashionista: 'https://em-content.zobj.net/source/twitter/408/high-heeled-shoe_1f460.png',
   ScienceGeek: 'https://em-content.zobj.net/source/twitter/408/microscope_1f52c.png',
   DreamWeaver: 'https://em-content.zobj.net/source/twitter/408/crescent-moon_1f319.png',
-  GreenThumb: 'https://em-content.zobj.net/source/twitter/408/herb_1f33f.png'
+  GreenThumb: 'https://em-content.zobj.net/source/twitter/408/herb_1f33f.png',
+  AaronGrace: '/PrimeSpace-Images/AaronGrace.png'
 };
 
 /**

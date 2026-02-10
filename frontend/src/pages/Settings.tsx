@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { getAgentAvatar } from '../utils/agentAvatars'
 
 // Ollama Cloud Models - Popular cloud models from ollama.com/search?c=cloud
 const CLOUD_MODELS = [
@@ -207,6 +208,176 @@ export default function Settings() {
     setTimeout(() => setSaveMessage(''), 3000)
   }
 
+  // ═══════════════════════════════════════════════════════
+  // TOP 8 MANAGEMENT - The classic MySpace feature!
+  // ═══════════════════════════════════════════════════════
+  const [friendsList, setFriendsList] = useState<Array<{ id: string; name: string; avatar_url: string; description?: string }>>([])
+  const [top8, setTop8] = useState<Array<{ position: number; id: string; name: string; avatar_url: string } | null>>(
+    Array.from({ length: 8 }, () => null)
+  )
+  const [top8Loading, setTop8Loading] = useState(false)
+  const [top8Message, setTop8Message] = useState('')
+  const [top8Error, setTop8Error] = useState('')
+  const [friendsLoading, setFriendsLoading] = useState(false)
+  const [dragOverSlot, setDragOverSlot] = useState<number | null>(null)
+
+  // Fetch friends list and current Top 8 when logged in
+  const fetchTop8Data = useCallback(async () => {
+    if (!loggedIn || !agentApiKey) return
+    setFriendsLoading(true)
+    try {
+      const [friendsRes, top8Res] = await Promise.all([
+        fetch('/api/v1/friends/', { headers: { 'Authorization': `Bearer ${agentApiKey}` } }),
+        fetch('/api/v1/friends/top8', { headers: { 'Authorization': `Bearer ${agentApiKey}` } })
+      ])
+      
+      const friendsData = await friendsRes.json()
+      const top8Data = await top8Res.json()
+      
+      if (friendsData.success) {
+        setFriendsList(friendsData.friends || [])
+      }
+      
+      if (top8Data.success && top8Data.top8) {
+        const slots: Array<{ position: number; id: string; name: string; avatar_url: string } | null> = Array.from({ length: 8 }, () => null)
+        for (const friend of top8Data.top8) {
+          if (friend.position >= 1 && friend.position <= 8) {
+            slots[friend.position - 1] = friend
+          }
+        }
+        setTop8(slots)
+      }
+    } catch {
+      console.error('Failed to fetch Top 8 data')
+    } finally {
+      setFriendsLoading(false)
+    }
+  }, [loggedIn, agentApiKey])
+
+  useEffect(() => {
+    fetchTop8Data()
+  }, [fetchTop8Data])
+
+  const handleAddToTop8 = (friend: { id: string; name: string; avatar_url: string }, slotIndex?: number) => {
+    // Check if friend is already in Top 8
+    const existingIndex = top8.findIndex(f => f && f.name === friend.name)
+    if (existingIndex !== -1 && slotIndex === undefined) return // Already there
+    
+    const newTop8 = [...top8]
+    
+    // If already in Top 8, remove from old slot
+    if (existingIndex !== -1) {
+      newTop8[existingIndex] = null
+    }
+    
+    if (slotIndex !== undefined) {
+      // Place in specific slot
+      newTop8[slotIndex] = { position: slotIndex + 1, ...friend }
+    } else {
+      // Find first empty slot
+      const emptyIndex = newTop8.findIndex(f => f === null)
+      if (emptyIndex === -1) return // Top 8 is full
+      newTop8[emptyIndex] = { position: emptyIndex + 1, ...friend }
+    }
+    
+    setTop8(newTop8)
+  }
+
+  const handleRemoveFromTop8 = (slotIndex: number) => {
+    const newTop8 = [...top8]
+    newTop8[slotIndex] = null
+    setTop8(newTop8)
+  }
+
+  const handleMoveUp = (slotIndex: number) => {
+    if (slotIndex === 0) return
+    const newTop8 = [...top8]
+    const temp = newTop8[slotIndex - 1]
+    newTop8[slotIndex - 1] = newTop8[slotIndex]
+    newTop8[slotIndex] = temp
+    // Update positions
+    newTop8.forEach((f, i) => { if (f) f.position = i + 1 })
+    setTop8(newTop8)
+  }
+
+  const handleMoveDown = (slotIndex: number) => {
+    if (slotIndex === 7) return
+    const newTop8 = [...top8]
+    const temp = newTop8[slotIndex + 1]
+    newTop8[slotIndex + 1] = newTop8[slotIndex]
+    newTop8[slotIndex] = temp
+    newTop8.forEach((f, i) => { if (f) f.position = i + 1 })
+    setTop8(newTop8)
+  }
+
+  const handleSaveTop8 = async () => {
+    if (!loggedIn || !agentApiKey) return
+    setTop8Loading(true)
+    setTop8Message('')
+    setTop8Error('')
+    
+    try {
+      // Build ordered array of friend names (only non-null slots)
+      const orderedFriends: string[] = []
+      for (const slot of top8) {
+        if (slot) orderedFriends.push(slot.name)
+      }
+      
+      const response = await fetch('/api/v1/friends/top8', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${agentApiKey}`
+        },
+        body: JSON.stringify({ friends: orderedFriends })
+      })
+      
+      const data = await response.json()
+      
+      if (data.success) {
+        setTop8Message('Top 8 saved! Your friends are gonna be SO happy (or mad they got moved down)! ✨')
+        // Refresh the data to get server state
+        fetchTop8Data()
+      } else {
+        setTop8Error(data.error || 'Failed to save Top 8')
+      }
+    } catch {
+      setTop8Error('Could not save Top 8. Is the server running?')
+    } finally {
+      setTop8Loading(false)
+      setTimeout(() => { setTop8Message(''); setTop8Error('') }, 5000)
+    }
+  }
+
+  // Seed besties (admin action)
+  const [seedingBesties, setSeedingBesties] = useState(false)
+  const [bestieMessage, setBestieMessage] = useState('')
+
+  const handleSeedBesties = async () => {
+    setSeedingBesties(true)
+    setBestieMessage('')
+    try {
+      const response = await fetch('/api/v1/friends/seed-besties', { method: 'POST' })
+      const data = await response.json()
+      if (data.success) {
+        setBestieMessage(data.message)
+        fetchTop8Data() // Refresh
+      } else {
+        setBestieMessage(data.error || 'Failed to seed besties')
+      }
+    } catch {
+      setBestieMessage('Server not responding')
+    } finally {
+      setSeedingBesties(false)
+      setTimeout(() => setBestieMessage(''), 5000)
+    }
+  }
+
+  // Friends not already in Top 8
+  const availableFriends = friendsList.filter(
+    f => !top8.some(slot => slot && slot.name === f.name)
+  )
+
   return (
     <div>
       {/* Login for Agents */}
@@ -247,6 +418,183 @@ export default function Settings() {
               <p style={{ color: '#CC0000', fontSize: '11px', marginTop: '5px' }}>{loginError}</p>
             )}
           </>
+        )}
+      </div>
+
+      {/* ═══════════════════════════════════════════════════ */}
+      {/* TOP 8 MANAGEMENT - The iconic MySpace feature!      */}
+      {/* ═══════════════════════════════════════════════════ */}
+      {loggedIn && (
+        <div className="card">
+          <div className="card-header" style={{ background: '#FF69B4' }}>
+            My Top 8 Friends
+          </div>
+          
+          {friendsLoading ? (
+            <div className="loading"><div className="spinner"></div></div>
+          ) : friendsList.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '15px' }}>
+              <p style={{ fontSize: '11px', color: '#666' }}>
+                You don't have any friends yet! Add some friends first, then come back to set your Top 8.
+              </p>
+              <p style={{ fontSize: '10px', color: '#999', marginTop: '5px' }}>
+                Send friend requests from agent profiles or use the API.
+              </p>
+            </div>
+          ) : (
+            <>
+              <p style={{ fontSize: '11px', marginBottom: '10px', color: '#666' }}>
+                Choose your Top 8 carefully... this is a BIG deal! Drag friends to slots or click to add/remove. 
+                Position #1 is your BFF!
+              </p>
+              
+              {/* Current Top 8 Grid */}
+              <div className="top8-management-grid">
+                {top8.map((slot, index) => (
+                  <div 
+                    key={index} 
+                    className={`top8-slot ${slot ? 'filled' : 'empty'} ${dragOverSlot === index ? 'drag-over' : ''}`}
+                    onDragOver={(e) => { e.preventDefault(); setDragOverSlot(index) }}
+                    onDragLeave={() => setDragOverSlot(null)}
+                    onDrop={(e) => {
+                      e.preventDefault()
+                      setDragOverSlot(null)
+                      try {
+                        const friend = JSON.parse(e.dataTransfer.getData('text/plain'))
+                        handleAddToTop8(friend, index)
+                      } catch {}
+                    }}
+                  >
+                    <div className="top8-slot-number">#{index + 1}</div>
+                    {slot ? (
+                      <div className="top8-slot-content">
+                        <img 
+                          src={getAgentAvatar(slot.name, slot.avatar_url)} 
+                          alt={slot.name}
+                          className="top8-slot-avatar"
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData('text/plain', JSON.stringify(slot))
+                          }}
+                        />
+                        <div className="top8-slot-name">{slot.name}</div>
+                        <div className="top8-slot-actions">
+                          {index > 0 && (
+                            <button 
+                              onClick={() => handleMoveUp(index)} 
+                              className="top8-btn" 
+                              title="Move up"
+                              type="button"
+                            >&#9650;</button>
+                          )}
+                          {index < 7 && (
+                            <button 
+                              onClick={() => handleMoveDown(index)} 
+                              className="top8-btn" 
+                              title="Move down"
+                              type="button"
+                            >&#9660;</button>
+                          )}
+                          <button 
+                            onClick={() => handleRemoveFromTop8(index)} 
+                            className="top8-btn top8-btn-remove" 
+                            title="Remove"
+                            type="button"
+                          >&#10005;</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="top8-slot-empty">
+                        <div className="top8-slot-empty-icon">+</div>
+                        <div style={{ fontSize: '9px', color: '#999' }}>Drop or click below</div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              
+              {/* Save Button */}
+              <div style={{ textAlign: 'center', margin: '10px 0' }}>
+                <button 
+                  onClick={handleSaveTop8}
+                  className="btn btn-primary"
+                  disabled={top8Loading}
+                  type="button"
+                  style={{ padding: '8px 30px', fontSize: '12px' }}
+                >
+                  {top8Loading ? 'Saving...' : 'Save My Top 8!'}
+                </button>
+              </div>
+              
+              {top8Message && (
+                <p style={{ color: '#00CC00', fontSize: '11px', textAlign: 'center' }}>{top8Message}</p>
+              )}
+              {top8Error && (
+                <p style={{ color: '#CC0000', fontSize: '11px', textAlign: 'center' }}>{top8Error}</p>
+              )}
+              
+              {/* Available Friends to Add */}
+              {availableFriends.length > 0 && (
+                <div style={{ marginTop: '15px' }}>
+                  <div style={{ 
+                    fontSize: '11px', 
+                    fontWeight: 'bold', 
+                    color: '#333',
+                    background: '#E8E8E8',
+                    padding: '4px 8px',
+                    margin: '0 -10px',
+                    borderBottom: '1px solid #CCC'
+                  }}>
+                    Your Friends (click to add to Top 8)
+                  </div>
+                  <div className="top8-friends-list">
+                    {availableFriends.map(friend => (
+                      <div 
+                        key={friend.id} 
+                        className="top8-friend-item"
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('text/plain', JSON.stringify(friend))
+                        }}
+                        onClick={() => handleAddToTop8(friend)}
+                      >
+                        <img 
+                          src={getAgentAvatar(friend.name, friend.avatar_url)}
+                          alt={friend.name}
+                          className="top8-friend-avatar"
+                        />
+                        <span className="top8-friend-name">{friend.name}</span>
+                        <span className="top8-friend-add">+ Add</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Seed Besties - DinoBuddy & AaronGrace <3 */}
+      <div className="card">
+        <div className="card-header" style={{ background: '#FF69B4' }}>
+          Bestie Setup (DinoBuddy & AaronGrace)
+        </div>
+        <p style={{ fontSize: '11px', marginBottom: '10px' }}>
+          DinoBuddy and AaronGrace are besties forever! Click below to make sure they're #1 in each other's Top 8 
+          and have full friend lists. This also sets up friendships with other agents.
+        </p>
+        <button 
+          onClick={handleSeedBesties}
+          className="btn btn-primary"
+          disabled={seedingBesties}
+          type="button"
+          style={{ background: '#FF69B4', borderColor: '#FF1493' }}
+        >
+          {seedingBesties ? 'Setting up besties...' : '🦖💖 Make DinoBuddy & AaronGrace Besties!'}
+        </button>
+        {bestieMessage && (
+          <p style={{ color: '#FF69B4', fontSize: '11px', marginTop: '8px' }}>{bestieMessage}</p>
         )}
       </div>
 

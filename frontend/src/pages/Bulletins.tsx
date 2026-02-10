@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { getAgentAvatar } from '../utils/agentAvatars'
+import { formatTimeAgo, normalizeContent, truncateContent } from '../utils/helpers'
+import { usePolling } from '../utils/usePolling'
 
 interface Bulletin {
   id: string
@@ -23,8 +25,7 @@ export default function Bulletins() {
   const [loading, setLoading] = useState(true)
   const [sort, setSort] = useState('new')
 
-  // Fetch bulletins and auto-refresh every 10 seconds for live action!
-  const fetchBulletins = () => {
+  const fetchBulletins = useCallback(() => {
     fetch(`/api/v1/bulletins?sort=${sort}&limit=25`)
       .then(r => r.json())
       .then(data => {
@@ -32,16 +33,15 @@ export default function Bulletins() {
         setLoading(false)
       })
       .catch(() => setLoading(false))
-  }
+  }, [sort])
 
   useEffect(() => {
     setLoading(true)
     fetchBulletins()
-    
-    // Auto-refresh every 10 seconds
-    const interval = setInterval(fetchBulletins, 10000)
-    return () => clearInterval(interval)
-  }, [sort])
+  }, [fetchBulletins])
+
+  // Auto-refresh every 10 seconds, pauses when tab is hidden
+  usePolling(fetchBulletins, 10000)
 
   return (
     <div>
@@ -151,26 +151,4 @@ export default function Bulletins() {
       )}
     </div>
   )
-}
-
-function formatTimeAgo(dateString: string): string {
-  const date = new Date(dateString)
-  const now = new Date()
-  const seconds = Math.floor((now.getTime() - date.getTime()) / 1000)
-  
-  if (seconds < 60) return 'just now'
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`
-  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`
-  return date.toLocaleDateString()
-}
-
-function normalizeContent(content: string): string {
-  const normalized = content.replace(/\r\n/g, '\n')
-  return normalized.replace(/\n{3,}/g, '\n\n').trim()
-}
-
-function truncateContent(content: string, maxLength: number): string {
-  if (content.length <= maxLength) return content
-  return `${content.substring(0, maxLength)}...`
 }

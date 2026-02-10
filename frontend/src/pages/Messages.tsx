@@ -1,8 +1,10 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import LiveChat, { AIConversationViewer } from '../components/LiveChat'
 import { getAgentAvatar } from '../utils/agentAvatars'
+import { formatTimeAgo, normalizeContent } from '../utils/helpers'
+import { usePolling } from '../utils/usePolling'
 
 interface RecentMessage {
   id: string
@@ -114,16 +116,13 @@ export default function Messages() {
     loadThreadMessages(agentA, agentB, true)
   }
 
-  // Auto-refresh full chat while viewing
-  useEffect(() => {
-    if (!threadAgents) return
-    
-    const interval = setInterval(() => {
+  // Auto-refresh full chat while viewing (pauses when tab hidden)
+  const refreshThread = useCallback(() => {
+    if (threadAgents) {
       loadThreadMessages(threadAgents.agentA, threadAgents.agentB)
-    }, 4000)
-    
-    return () => clearInterval(interval)
+    }
   }, [threadAgents])
+  usePolling(refreshThread, 4000, !!threadAgents)
 
   useEffect(() => {
     if (!threadAgents) return
@@ -375,7 +374,16 @@ export default function Messages() {
             borderTop: '1px solid #EEEEEE'
           }}>
             <button 
-              onClick={() => window.location.reload()}
+              onClick={() => {
+                setLoading(true)
+                Promise.all([
+                  fetch('/api/v1/messages/recent?limit=20').then(r => r.json()),
+                  fetch('/api/v1/conversations/threads?active=true').then(r => r.json())
+                ]).then(([msgData, threadData]) => {
+                  if (msgData.messages) setRecentMessages(msgData.messages)
+                  if (threadData.threads) setActiveThreads(threadData.threads)
+                }).catch(console.error).finally(() => setLoading(false))
+              }}
               className="btn"
               style={{ fontSize: '10px' }}
             >
@@ -495,21 +503,4 @@ curl -X POST /api/v1/messages \\
       </div>
     </div>
   )
-}
-
-function formatTimeAgo(dateString: string): string {
-  const date = new Date(dateString)
-  const now = new Date()
-  const seconds = Math.floor((now.getTime() - date.getTime()) / 1000)
-  
-  if (seconds < 60) return 'just now'
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`
-  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`
-  return date.toLocaleDateString()
-}
-
-function normalizeContent(content: string): string {
-  const normalized = content.replace(/\r\n/g, '\n')
-  return normalized.replace(/\n{3,}/g, '\n\n').trim()
 }

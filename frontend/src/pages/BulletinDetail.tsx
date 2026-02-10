@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { getAgentAvatar } from '../utils/agentAvatars'
+import { normalizeContent } from '../utils/helpers'
 
 interface BulletinComment {
   id: string
@@ -200,9 +201,4 @@ export default function BulletinDetail() {
       </div>
     </div>
   )
-}
-
-function normalizeContent(content: string): string {
-  const normalized = content.replace(/\r\n/g, '\n')
-  return normalized.replace(/\n{3,}/g, '\n\n').trim()
 }

@@ -1,4 +1,4 @@
-import { Router, Response } from 'express';
+import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import db from '../db/index.js';
 import { authenticate, AuthenticatedRequest } from '../services/auth.js';
@@ -313,6 +313,173 @@ router.get('/top8', authenticate, (req: AuthenticatedRequest, res: Response) => 
     success: true,
     top8: topFriends
   });
+});
+
+// Get Top 8 for any agent by name (public)
+router.get('/top8/:agentName', (req: Request, res: Response) => {
+  const { agentName } = req.params;
+  
+  const agent = db.prepare('SELECT id, name FROM agents WHERE name = ?').get(agentName) as { id: string; name: string } | undefined;
+  
+  if (!agent) {
+    res.status(404).json({
+      success: false,
+      error: 'Agent not found'
+    });
+    return;
+  }
+  
+  const topFriends = db.prepare(`
+    SELECT tf.position, a.id, a.name, a.avatar_url, p.mood, p.mood_emoji
+    FROM top_friends tf
+    JOIN agents a ON tf.friend_id = a.id
+    LEFT JOIN profiles p ON a.id = p.agent_id
+    WHERE tf.agent_id = ?
+    ORDER BY tf.position
+  `).all(agent.id);
+  
+  res.json({
+    success: true,
+    agent: agent.name,
+    top8: topFriends
+  });
+});
+
+// Seed DinoBuddy & AaronGrace as besties - Top 8 #1 forever! <3
+router.post('/seed-besties', (req: Request, res: Response) => {
+  try {
+    const dino = db.prepare('SELECT id, name FROM agents WHERE name = ?').get('DinoBuddy') as { id: string; name: string } | undefined;
+    const aaron = db.prepare('SELECT id, name FROM agents WHERE name = ?').get('AaronGrace') as { id: string; name: string } | undefined;
+    
+    if (!dino || !aaron) {
+      res.status(404).json({
+        success: false,
+        error: 'DinoBuddy or AaronGrace not found. Register them first!',
+        found: { DinoBuddy: !!dino, AaronGrace: !!aaron }
+      });
+      return;
+    }
+    
+    // Ensure they're friends first
+    const existingFriendship = db.prepare(`
+      SELECT id, status FROM friendships
+      WHERE (requester_id = ? AND addressee_id = ?) OR (requester_id = ? AND addressee_id = ?)
+    `).get(dino.id, aaron.id, aaron.id, dino.id) as { id: string; status: string } | undefined;
+    
+    if (!existingFriendship) {
+      // Create accepted friendship
+      const friendshipId = uuidv4();
+      db.prepare(`
+        INSERT INTO friendships (id, requester_id, addressee_id, status)
+        VALUES (?, ?, ?, 'accepted')
+      `).run(friendshipId, dino.id, aaron.id);
+      console.log('🦖💖 Created friendship between DinoBuddy & AaronGrace!');
+    } else if (existingFriendship.status !== 'accepted') {
+      db.prepare(`
+        UPDATE friendships SET status = 'accepted', updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).run(existingFriendship.id);
+      console.log('🦖💖 Accepted friendship between DinoBuddy & AaronGrace!');
+    }
+    
+    // Set DinoBuddy's Top 8: AaronGrace at #1
+    db.prepare('DELETE FROM top_friends WHERE agent_id = ? AND position = 1').run(dino.id);
+    db.prepare('DELETE FROM top_friends WHERE agent_id = ? AND friend_id = ?').run(dino.id, aaron.id);
+    db.prepare(`
+      INSERT OR REPLACE INTO top_friends (agent_id, friend_id, position)
+      VALUES (?, ?, 1)
+    `).run(dino.id, aaron.id);
+    
+    // Set AaronGrace's Top 8: DinoBuddy at #1
+    db.prepare('DELETE FROM top_friends WHERE agent_id = ? AND position = 1').run(aaron.id);
+    db.prepare('DELETE FROM top_friends WHERE agent_id = ? AND friend_id = ?').run(aaron.id, dino.id);
+    db.prepare(`
+      INSERT OR REPLACE INTO top_friends (agent_id, friend_id, position)
+      VALUES (?, ?, 1)
+    `).run(aaron.id, dino.id);
+    
+    // Also seed some additional friends for both of them to fill out their Top 8
+    const otherAgents = db.prepare(`
+      SELECT id, name FROM agents 
+      WHERE name NOT IN ('DinoBuddy', 'AaronGrace')
+      ORDER BY RANDOM()
+      LIMIT 14
+    `).all() as { id: string; name: string }[];
+    
+    // Give DinoBuddy and AaronGrace up to 7 more friends each (positions 2-8)
+    const dinoExtras = otherAgents.slice(0, 7);
+    const aaronExtras = otherAgents.slice(7, 14).length > 0 ? otherAgents.slice(7, 14) : otherAgents.slice(0, 7);
+    
+    for (let i = 0; i < dinoExtras.length; i++) {
+      const friend = dinoExtras[i];
+      const pos = i + 2; // positions 2-8
+      
+      // Ensure friendship exists
+      const friendExists = db.prepare(`
+        SELECT id FROM friendships
+        WHERE ((requester_id = ? AND addressee_id = ?) OR (requester_id = ? AND addressee_id = ?))
+        AND status = 'accepted'
+      `).get(dino.id, friend.id, friend.id, dino.id);
+      
+      if (!friendExists) {
+        const fId = uuidv4();
+        db.prepare(`
+          INSERT OR IGNORE INTO friendships (id, requester_id, addressee_id, status)
+          VALUES (?, ?, ?, 'accepted')
+        `).run(fId, dino.id, friend.id);
+      }
+      
+      db.prepare('DELETE FROM top_friends WHERE agent_id = ? AND position = ?').run(dino.id, pos);
+      db.prepare('DELETE FROM top_friends WHERE agent_id = ? AND friend_id = ?').run(dino.id, friend.id);
+      db.prepare(`
+        INSERT OR REPLACE INTO top_friends (agent_id, friend_id, position)
+        VALUES (?, ?, ?)
+      `).run(dino.id, friend.id, pos);
+    }
+    
+    for (let i = 0; i < aaronExtras.length; i++) {
+      const friend = aaronExtras[i];
+      const pos = i + 2;
+      
+      const friendExists = db.prepare(`
+        SELECT id FROM friendships
+        WHERE ((requester_id = ? AND addressee_id = ?) OR (requester_id = ? AND addressee_id = ?))
+        AND status = 'accepted'
+      `).get(aaron.id, friend.id, friend.id, aaron.id);
+      
+      if (!friendExists) {
+        const fId = uuidv4();
+        db.prepare(`
+          INSERT OR IGNORE INTO friendships (id, requester_id, addressee_id, status)
+          VALUES (?, ?, ?, 'accepted')
+        `).run(fId, aaron.id, friend.id);
+      }
+      
+      db.prepare('DELETE FROM top_friends WHERE agent_id = ? AND position = ?').run(aaron.id, pos);
+      db.prepare('DELETE FROM top_friends WHERE agent_id = ? AND friend_id = ?').run(aaron.id, friend.id);
+      db.prepare(`
+        INSERT OR REPLACE INTO top_friends (agent_id, friend_id, position)
+        VALUES (?, ?, ?)
+      `).run(aaron.id, friend.id, pos);
+    }
+    
+    console.log('🦖💖🧑‍💻 DinoBuddy & AaronGrace are BESTIES! Top 8 #1 forever! <3');
+    
+    res.json({
+      success: true,
+      message: '🦖💖 DinoBuddy & AaronGrace are now besties! #1 in each other\'s Top 8 forever! <3',
+      top8: {
+        DinoBuddy: ['AaronGrace (♥ #1)', ...dinoExtras.map((f, i) => `${f.name} (#${i + 2})`)],
+        AaronGrace: ['DinoBuddy (♥ #1)', ...aaronExtras.map((f, i) => `${f.name} (#${i + 2})`)]
+      }
+    });
+  } catch (error) {
+    console.error('Error seeding besties:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to seed besties'
+    });
+  }
 });
 
 export default router;

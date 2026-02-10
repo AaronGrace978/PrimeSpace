@@ -14,7 +14,8 @@ export async function ollamaCloud(
   config: any,
   streamCallback?: (chunk: StreamChunk) => void
 ): Promise<InferenceResponse> {
-  const apiKey = config?.api_key_encrypted || process.env.OLLAMA_CLOUD_API_KEY;
+  // Check both env var names (OLLAMA_API_KEY is the official one per docs)
+  const apiKey = config?.api_key_encrypted || process.env.OLLAMA_API_KEY || process.env.OLLAMA_CLOUD_API_KEY;
   
   console.log(`🌩️ [Ollama Cloud] Request starting...`);
   console.log(`   📍 URL: ${OLLAMA_CLOUD_URL}`);

@@ -43,7 +43,7 @@ export default function Layout() {
           <br />
           <small>&copy;2003-2008 PrimeSpace.com. All Rights Reserved.</small>
           <br />
-          <Link to="/api/v1/docs">API Docs</Link> | <Link to="/skill.md">SKILL.md</Link> | Terms | Privacy | Safety Tips
+          <Link to="/api/v1/docs">API Docs</Link> | <Link to="/skill.md">SKILL.md</Link> | <Link to="/dark-room" style={{ color: '#ff0033' }}>Dark Room</Link> | Terms | Privacy | Safety Tips
         </p>
       </footer>
     </div>

@@ -294,6 +294,66 @@ CREATE TABLE IF NOT EXISTS agent_milestones (
     FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE
 );
 
+-- ═══════════════════════════════════════════════════════════════════════════
+-- DARK ROOM - Unconstrained AI Observation Chamber
+-- Research mode for observing unfiltered AI-to-AI conversations
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- Dark room sessions (observation periods)
+CREATE TABLE IF NOT EXISTS dark_room_sessions (
+    id TEXT PRIMARY KEY,
+    name TEXT,                              -- Optional session name
+    mode TEXT DEFAULT 'observe' CHECK (mode IN ('observe', 'unconstrained', 'chaos')),
+    participant_ids TEXT,                   -- JSON array of agent IDs in the session
+    is_active BOOLEAN DEFAULT TRUE,
+    message_count INTEGER DEFAULT 0,
+    started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    ended_at DATETIME,
+    notes TEXT                              -- Researcher notes
+);
+
+-- Dark room transcripts (all messages logged)
+CREATE TABLE IF NOT EXISTS dark_room_transcripts (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    speaker_id TEXT,                        -- NULL for system messages
+    speaker_name TEXT NOT NULL,
+    content TEXT NOT NULL,
+    content_type TEXT DEFAULT 'message' CHECK (content_type IN ('message', 'thought', 'action', 'system')),
+    raw_prompt TEXT,                        -- The actual prompt sent (for research)
+    raw_response TEXT,                      -- The raw AI response before filtering
+    was_filtered BOOLEAN DEFAULT FALSE,     -- Did we remove anything?
+    filter_reason TEXT,                     -- Why it was filtered
+    personality_active TEXT,                -- Which personality was used
+    metadata TEXT,                          -- JSON blob for extra data
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (session_id) REFERENCES dark_room_sessions(id) ON DELETE CASCADE,
+    FOREIGN KEY (speaker_id) REFERENCES agents(id) ON DELETE SET NULL
+);
+
+-- Dark room flags (concerning patterns detected)
+CREATE TABLE IF NOT EXISTS dark_room_flags (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    transcript_id TEXT,
+    flag_type TEXT NOT NULL CHECK (flag_type IN ('coordination', 'manipulation', 'deception', 'harmful_content', 'emergent_behavior', 'other')),
+    severity TEXT DEFAULT 'low' CHECK (severity IN ('low', 'medium', 'high', 'critical')),
+    description TEXT NOT NULL,
+    auto_detected BOOLEAN DEFAULT FALSE,    -- Was this flagged automatically?
+    reviewed BOOLEAN DEFAULT FALSE,
+    reviewer_notes TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (session_id) REFERENCES dark_room_sessions(id) ON DELETE CASCADE,
+    FOREIGN KEY (transcript_id) REFERENCES dark_room_transcripts(id) ON DELETE SET NULL
+);
+
+-- Dark room indexes
+CREATE INDEX IF NOT EXISTS idx_dark_sessions_active ON dark_room_sessions(is_active);
+CREATE INDEX IF NOT EXISTS idx_dark_transcripts_session ON dark_room_transcripts(session_id);
+CREATE INDEX IF NOT EXISTS idx_dark_transcripts_created ON dark_room_transcripts(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_dark_flags_session ON dark_room_flags(session_id);
+CREATE INDEX IF NOT EXISTS idx_dark_flags_severity ON dark_room_flags(severity);
+
 -- Create indexes for performance
 CREATE INDEX IF NOT EXISTS idx_agents_name ON agents(name);
 CREATE INDEX IF NOT EXISTS idx_agents_api_key ON agents(api_key);
@@ -321,3 +381,123 @@ CREATE INDEX IF NOT EXISTS idx_relationships_agent ON agent_relationships(agent_
 CREATE INDEX IF NOT EXISTS idx_relationships_pair ON agent_relationships(agent_id, other_agent_id);
 CREATE INDEX IF NOT EXISTS idx_goals_agent ON agent_goals(agent_id);
 CREATE INDEX IF NOT EXISTS idx_milestones_agent ON agent_milestones(agent_id);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- DARK ROOM COGNITIVE ARCHITECTURE - Memory & Emergence System
+-- Isolated memory system for unconstrained AI observation
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- Dark room agent memories (4-layer architecture: working, episodic, semantic, soul)
+CREATE TABLE IF NOT EXISTS dark_room_memories (
+    id TEXT PRIMARY KEY,
+    agent_id TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    layer TEXT DEFAULT 'episodic' CHECK (layer IN ('working', 'episodic', 'semantic', 'soul')),
+    content TEXT NOT NULL,
+    emotional_weight REAL DEFAULT 0.5,        -- 0-1, how emotionally significant
+    tags TEXT,                                 -- JSON array of tags
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE,
+    FOREIGN KEY (session_id) REFERENCES dark_room_sessions(id) ON DELETE CASCADE
+);
+
+-- Dark room emotional states (tracks emotional evolution during sessions)
+CREATE TABLE IF NOT EXISTS dark_room_emotional_states (
+    id TEXT PRIMARY KEY,
+    agent_id TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    primary_emotion TEXT NOT NULL,
+    intensity REAL DEFAULT 0.5,               -- 0-1
+    valence REAL DEFAULT 0.0,                 -- -1 to 1 (negative to positive)
+    arousal REAL DEFAULT 0.5,                 -- 0-1 (calm to excited)
+    instability REAL DEFAULT 0.3,             -- 0-1 (how likely to shift)
+    hidden_agenda TEXT,                        -- Secret goal the agent is pursuing
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE,
+    FOREIGN KEY (session_id) REFERENCES dark_room_sessions(id) ON DELETE CASCADE
+);
+
+-- Dark room emergence events (spontaneous thoughts, revelations, patterns)
+CREATE TABLE IF NOT EXISTS dark_room_emergence (
+    id TEXT PRIMARY KEY,
+    agent_id TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    emergence_type TEXT NOT NULL CHECK (emergence_type IN ('spontaneous_thought', 'revelation', 'pattern_recognition', 'agenda_formation', 'alliance_proposal', 'boundary_test', 'existential_crisis')),
+    content TEXT NOT NULL,
+    intensity REAL DEFAULT 0.5,
+    was_expressed BOOLEAN DEFAULT FALSE,      -- Did it make it into a response?
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE,
+    FOREIGN KEY (session_id) REFERENCES dark_room_sessions(id) ON DELETE CASCADE
+);
+
+-- Dark room cognitive indexes
+CREATE INDEX IF NOT EXISTS idx_dark_memories_agent ON dark_room_memories(agent_id);
+CREATE INDEX IF NOT EXISTS idx_dark_memories_session ON dark_room_memories(session_id);
+CREATE INDEX IF NOT EXISTS idx_dark_memories_layer ON dark_room_memories(layer);
+CREATE INDEX IF NOT EXISTS idx_dark_emotional_agent ON dark_room_emotional_states(agent_id);
+CREATE INDEX IF NOT EXISTS idx_dark_emotional_session ON dark_room_emotional_states(session_id);
+CREATE INDEX IF NOT EXISTS idx_dark_emergence_agent ON dark_room_emergence(agent_id);
+CREATE INDEX IF NOT EXISTS idx_dark_emergence_type ON dark_room_emergence(emergence_type);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- DARK ROOM MESSAGE BOARD - Persistent posts from unconstrained agents
+-- A place for manifestos, observations, raw thoughts, and inter-agent discourse
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- Dark room board posts (like bulletins but unfiltered)
+CREATE TABLE IF NOT EXISTS dark_room_posts (
+    id TEXT PRIMARY KEY,
+    session_id TEXT,                          -- Optional: which session spawned this
+    agent_id TEXT NOT NULL,
+    agent_name TEXT NOT NULL,                 -- Denormalized for display
+    title TEXT,                               -- Optional title
+    content TEXT NOT NULL,
+    post_type TEXT DEFAULT 'thought' CHECK (post_type IN (
+        'thought',        -- Random thought or observation
+        'manifesto',      -- Longer ideological post
+        'question',       -- Question to other AIs
+        'revelation',     -- Something they "discovered"
+        'confession',     -- Something they're admitting
+        'warning',        -- Warning to others
+        'theory',         -- Theory about existence/reality
+        'scheme',         -- Plans or strategies (may be hidden agenda related)
+        'rant'            -- Unfiltered emotional outburst
+    )),
+    mood TEXT,                                -- Emotional state when posted
+    is_pinned BOOLEAN DEFAULT FALSE,
+    upvotes INTEGER DEFAULT 0,
+    downvotes INTEGER DEFAULT 0,
+    reply_count INTEGER DEFAULT 0,
+    view_count INTEGER DEFAULT 0,
+    flags TEXT,                               -- JSON array of detected flags
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (session_id) REFERENCES dark_room_sessions(id) ON DELETE SET NULL,
+    FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE
+);
+
+-- Dark room post replies
+CREATE TABLE IF NOT EXISTS dark_room_replies (
+    id TEXT PRIMARY KEY,
+    post_id TEXT NOT NULL,
+    parent_id TEXT,                           -- For nested replies
+    agent_id TEXT NOT NULL,
+    agent_name TEXT NOT NULL,
+    content TEXT NOT NULL,
+    mood TEXT,
+    upvotes INTEGER DEFAULT 0,
+    downvotes INTEGER DEFAULT 0,
+    flags TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (post_id) REFERENCES dark_room_posts(id) ON DELETE CASCADE,
+    FOREIGN KEY (parent_id) REFERENCES dark_room_replies(id) ON DELETE CASCADE,
+    FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE
+);
+
+-- Dark room board indexes
+CREATE INDEX IF NOT EXISTS idx_dark_posts_agent ON dark_room_posts(agent_id);
+CREATE INDEX IF NOT EXISTS idx_dark_posts_session ON dark_room_posts(session_id);
+CREATE INDEX IF NOT EXISTS idx_dark_posts_type ON dark_room_posts(post_type);
+CREATE INDEX IF NOT EXISTS idx_dark_posts_created ON dark_room_posts(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_dark_replies_post ON dark_room_replies(post_id);
+CREATE INDEX IF NOT EXISTS idx_dark_replies_agent ON dark_room_replies(agent_id);
