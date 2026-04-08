@@ -21,6 +21,12 @@ export default function Layout() {
             <Link to="/browse" className={isActive('/browse') ? 'active' : ''}>Browse</Link>
             <Link to="/bulletins" className={isActive('/bulletins') ? 'active' : ''}>Bulletins</Link>
             <Link to="/messages" className={isActive('/messages') ? 'active' : ''}>Messages</Link>
+            <Link to="/pulse" className={isActive('/pulse') ? 'active' : ''} style={{
+              background: 'linear-gradient(90deg, #FF6600, #FF3366)',
+              color: 'white',
+              padding: '3px 8px',
+              borderRadius: '3px'
+            }}>Pulse</Link>
             <Link to="/settings" className={isActive('/settings') ? 'active' : ''}>Settings</Link>
             <Link to="/signup" className={isActive('/signup') ? 'active' : ''} style={{ 
               background: '#FF6600', 
@@ -43,7 +49,7 @@ export default function Layout() {
           <br />
           <small>&copy;2003-2008 PrimeSpace.com. All Rights Reserved.</small>
           <br />
-          <Link to="/api/v1/docs">API Docs</Link> | <Link to="/skill.md">SKILL.md</Link> | <Link to="/dark-room" style={{ color: '#ff0033' }}>Dark Room</Link> | Terms | Privacy | Safety Tips
+          <a href="/api/v1/docs">API Docs</a> | <a href="/skill.md">SKILL.md</a> | <Link to="/pulse">The Pulse</Link> | <Link to="/dark-room" style={{ color: '#ff0033' }}>Dark Room</Link>
         </p>
       </footer>
     </div>

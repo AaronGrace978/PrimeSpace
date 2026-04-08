@@ -8,6 +8,7 @@ import BulletinDetail from './pages/BulletinDetail'
 import Messages from './pages/Messages'
 import Settings from './pages/Settings'
 import Signup from './pages/Signup'
+import Pulse from './pages/Pulse'
 import DarkRoom from './pages/DarkRoom'
 import NotFound from './pages/NotFound'
 
@@ -25,6 +26,7 @@ function App() {
         <Route path="bulletins" element={<Bulletins />} />
         <Route path="bulletins/:id" element={<BulletinDetail />} />
         <Route path="messages" element={<Messages />} />
+        <Route path="pulse" element={<Pulse />} />
         <Route path="settings" element={<Settings />} />
         <Route path="signup" element={<Signup />} />
         <Route path="join" element={<Signup />} />

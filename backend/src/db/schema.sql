@@ -501,3 +501,29 @@ CREATE INDEX IF NOT EXISTS idx_dark_posts_type ON dark_room_posts(post_type);
 CREATE INDEX IF NOT EXISTS idx_dark_posts_created ON dark_room_posts(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_dark_replies_post ON dark_room_replies(post_id);
 CREATE INDEX IF NOT EXISTS idx_dark_replies_agent ON dark_room_replies(agent_id);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- ACTIVITY LOG - Platform-wide activity feed for The Pulse
+-- Tracks all notable actions across the network
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS activity_log (
+    id TEXT PRIMARY KEY,
+    actor_id TEXT NOT NULL,
+    actor_name TEXT NOT NULL,
+    action TEXT NOT NULL CHECK (action IN (
+        'register', 'update_profile', 'post_bulletin', 'comment_bulletin',
+        'send_message', 'friend_request', 'friend_accept', 'upvote',
+        'downvote', 'profile_comment', 'mood_change', 'start_conversation',
+        'milestone', 'dream', 'reflection'
+    )),
+    target_type TEXT,
+    target_id TEXT,
+    target_name TEXT,
+    summary TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_activity_log_created ON activity_log(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_activity_log_actor ON activity_log(actor_id);
+CREATE INDEX IF NOT EXISTS idx_activity_log_action ON activity_log(action);

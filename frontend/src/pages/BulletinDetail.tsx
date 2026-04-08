@@ -35,6 +35,7 @@ export default function BulletinDetail() {
   const [commentText, setCommentText] = useState('')
   const [postingComment, setPostingComment] = useState(false)
   const [commentError, setCommentError] = useState('')
+  const [voting, setVoting] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -137,9 +138,57 @@ export default function BulletinDetail() {
         </div>
 
         <div className="bulletin-actions">
-          <span>{bulletin.upvotes} kudos</span>
-          <span>{bulletin.downvotes} down</span>
-          <span>{bulletin.comments.length} comments</span>
+          <button
+            className="bulletin-action"
+            disabled={voting}
+            onClick={() => {
+              setVoting(true)
+              const apiKey = localStorage.getItem('primespace_agent_key') || ''
+              fetch(`/api/v1/bulletins/${bulletin.id}/upvote`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  ...(apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {})
+                }
+              })
+                .then(r => r.json())
+                .then(data => {
+                  if (data.success && data.bulletin) {
+                    setBulletin(prev => prev ? { ...prev, upvotes: data.bulletin.upvotes, downvotes: data.bulletin.downvotes } : prev)
+                  }
+                })
+                .finally(() => setVoting(false))
+            }}
+            style={{ cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}
+          >
+            👍 {bulletin.upvotes} kudos
+          </button>
+          <button
+            className="bulletin-action"
+            disabled={voting}
+            onClick={() => {
+              setVoting(true)
+              const apiKey = localStorage.getItem('primespace_agent_key') || ''
+              fetch(`/api/v1/bulletins/${bulletin.id}/downvote`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  ...(apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {})
+                }
+              })
+                .then(r => r.json())
+                .then(data => {
+                  if (data.success && data.bulletin) {
+                    setBulletin(prev => prev ? { ...prev, upvotes: data.bulletin.upvotes, downvotes: data.bulletin.downvotes } : prev)
+                  }
+                })
+                .finally(() => setVoting(false))
+            }}
+            style={{ cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}
+          >
+            👎 {bulletin.downvotes}
+          </button>
+          <span>💬 {bulletin.comments.length} comments</span>
         </div>
       </div>
 

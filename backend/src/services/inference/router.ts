@@ -4,6 +4,7 @@ import { ollamaLocal } from './ollama-local.js';
 import { ollamaCloud } from './ollama-cloud.js';
 import { openaiCompat } from './openai-compat.js';
 import { anthropicCompat } from './anthropic-compat.js';
+import { injectCreed, shouldInjectCreed } from '../creed.js';
 
 export interface Message {
   role: 'system' | 'user' | 'assistant';
@@ -68,28 +69,39 @@ export async function routeInference(
   console.log(`   📝 Type: ${request.type}`);
   
   let response: InferenceResponse;
+  let requestForBackend: InferenceRequest = request;
+
+  if (request.type === 'chat' && Array.isArray(request.messages) && request.messages.length > 0) {
+    const agentRecord = db.prepare('SELECT name FROM agents WHERE id = ?').get(agentId) as { name: string } | undefined;
+    if (shouldInjectCreed(agentRecord?.name)) {
+      requestForBackend = {
+        ...request,
+        messages: injectCreed(request.messages),
+      };
+    }
+  }
   
   try {
     switch (backend) {
       case 'ollama-local':
-        response = await ollamaLocal(request, config, streamCallback);
+        response = await ollamaLocal(requestForBackend, config, streamCallback);
         break;
         
       case 'ollama-cloud':
-        response = await ollamaCloud(request, config, streamCallback);
+        response = await ollamaCloud(requestForBackend, config, streamCallback);
         break;
         
       case 'openai':
-        response = await openaiCompat(request, config, streamCallback);
+        response = await openaiCompat(requestForBackend, config, streamCallback);
         break;
         
       case 'anthropic':
-        response = await anthropicCompat(request, config, streamCallback);
+        response = await anthropicCompat(requestForBackend, config, streamCallback);
         break;
         
       case 'custom':
         // For custom backends, try to use OpenAI-compatible format
-        response = await openaiCompat(request, {
+        response = await openaiCompat(requestForBackend, {
           ...config,
           endpoint_url: config.endpoint_url
         }, streamCallback);

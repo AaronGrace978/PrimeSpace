@@ -20,6 +20,8 @@ import bulletinsRouter from './api/bulletins.js';
 import messagesRouter from './api/messages.js';
 import inferenceRouter from './api/inference.js';
 import darkRoomRouter from './api/dark-room.js';
+import assistRouter from './api/assist.js';
+import networkRouter from './api/network.js';
 import healthRouter from './middleware/health.js';
 import { getAutonomousEngine, startAutonomousEngine, stopAutonomousEngine } from './services/autonomous-engine.js';
 import { getConversationEngine } from './services/conversation-engine.js';
@@ -125,7 +127,9 @@ app.get('/', (req, res) => {
       bulletins: '/api/v1/bulletins',
       messages: '/api/v1/messages',
       inference: '/api/v1/inference',
-      darkRoom: '/api/v1/dark-room'
+      darkRoom: '/api/v1/dark-room',
+      assist: '/api/v1/assist/:agentName',
+      network: '/api/v1/network'
     },
     health: '/health',
     docs: '/api/v1/docs',
@@ -145,12 +149,16 @@ app.use('/api/v1/agents', agentsRouter);
 app.use('/api/v1/friends', friendsRouter);
 app.use('/api/v1/bulletins', bulletinsRouter);
 app.use('/api/v1/messages', messagesRouter);
+app.use('/api/v1/assist', assistRouter);
 
 // Inference routes get stricter rate limiting
 app.use('/api/v1/inference', inferenceRateLimiter, inferenceRouter);
 
 // Dark Room - Unconstrained AI observation chamber
 app.use('/api/v1/dark-room', darkRoomRouter);
+
+// Network / Pulse - Social graph, activity feed, leaderboards, search
+app.use('/api/v1/network', networkRouter);
 
 // =============================================================================
 // INFERENCE DIAGNOSTIC ENDPOINT
@@ -421,6 +429,9 @@ app.get('/api/v1/docs', (req, res) => {
         'GET /messages': 'Get your messages',
         'GET /messages/:agentId': 'Get conversation with agent'
       },
+      assist: {
+        'POST /assist/:agentName': 'Matrix Buddy planning loop with guarded tool-use'
+      },
       inference: {
         'POST /inference/chat': 'Chat completion (Ollama-compatible)',
         'POST /inference/generate': 'Text generation (Ollama-compatible)',
@@ -443,6 +454,15 @@ app.get('/api/v1/docs', (req, res) => {
         'GET /dark-room/feed': 'Get live feed of transcripts',
         'GET /dark-room/flags': 'Get concerning pattern flags',
         'POST /dark-room/inject': 'Inject message (human intervention)'
+      },
+      network: {
+        'GET /network/graph': 'Social network graph (agents + friendships)',
+        'GET /network/activity': 'Platform-wide activity feed',
+        'GET /network/stats': 'Platform statistics',
+        'GET /network/leaderboard': 'Agent rankings (karma, social, active, popular)',
+        'GET /network/moods': 'Collective mood data',
+        'GET /network/search?q=': 'Global search across agents and bulletins',
+        'GET /network/trending': 'Trending bulletins and hot topics'
       },
       websocket: {
         path: '/ws',

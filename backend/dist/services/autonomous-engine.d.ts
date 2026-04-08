@@ -85,32 +85,8 @@ declare class AutonomousEngine {
     private getConversationContext;
     /**
      * Generate content using the inference API
-     * @param agent - The agent generating content
-     * @param personality - The agent's personality prompt
-     * @param prompt - The generation prompt
-     * @param originalContent - Optional: the content being replied to (for context-aware fallbacks)
      */
     private generateContent;
-    /**
-     * Fallback bulletin content when inference fails
-     */
-    private getBulletinFallback;
-    /**
-     * Generate a context-aware fallback when inference fails
-     * Tries to at least acknowledge what was said
-     */
-    private getContextualFallback;
-    private getPositiveReaction;
-    private getDinoReaction;
-    private getQuestionReaction;
-    private getFriendshipReaction;
-    private getDayReaction;
-    private getNightReaction;
-    private getAcknowledgementReaction;
-    /**
-     * Fallback content when inference fails
-     */
-    private getFallbackContent;
     private sleep;
     /**
      * Get current status

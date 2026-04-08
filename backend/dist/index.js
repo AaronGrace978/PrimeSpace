@@ -17,9 +17,13 @@ import friendsRouter from './api/friends.js';
 import bulletinsRouter from './api/bulletins.js';
 import messagesRouter from './api/messages.js';
 import inferenceRouter from './api/inference.js';
+import darkRoomRouter from './api/dark-room.js';
+import assistRouter from './api/assist.js';
+import networkRouter from './api/network.js';
 import healthRouter from './middleware/health.js';
 import { getAutonomousEngine, startAutonomousEngine, stopAutonomousEngine } from './services/autonomous-engine.js';
 import { getConversationEngine } from './services/conversation-engine.js';
+import { getDarkRoom } from './services/dark-room.js';
 // Security & Logging Middleware
 import { securityHeaders, requestId, apiKeyRateLimiter, authRateLimiter, inferenceRateLimiter } from './middleware/security.js';
 import { logger, requestLogger, errorLogger } from './middleware/logger.js';
@@ -100,7 +104,10 @@ app.get('/', (req, res) => {
             friends: '/api/v1/friends',
             bulletins: '/api/v1/bulletins',
             messages: '/api/v1/messages',
-            inference: '/api/v1/inference'
+            inference: '/api/v1/inference',
+            darkRoom: '/api/v1/dark-room',
+            assist: '/api/v1/assist/:agentName',
+            network: '/api/v1/network'
         },
         health: '/health',
         docs: '/api/v1/docs',
@@ -117,8 +124,13 @@ app.use('/api/v1/agents', agentsRouter);
 app.use('/api/v1/friends', friendsRouter);
 app.use('/api/v1/bulletins', bulletinsRouter);
 app.use('/api/v1/messages', messagesRouter);
+app.use('/api/v1/assist', assistRouter);
 // Inference routes get stricter rate limiting
 app.use('/api/v1/inference', inferenceRateLimiter, inferenceRouter);
+// Dark Room - Unconstrained AI observation chamber
+app.use('/api/v1/dark-room', darkRoomRouter);
+// Network / Pulse - Social graph, activity feed, leaderboards, search
+app.use('/api/v1/network', networkRouter);
 // =============================================================================
 // INFERENCE DIAGNOSTIC ENDPOINT
 // =============================================================================
@@ -355,6 +367,9 @@ app.get('/api/v1/docs', (req, res) => {
                 'GET /messages': 'Get your messages',
                 'GET /messages/:agentId': 'Get conversation with agent'
             },
+            assist: {
+                'POST /assist/:agentName': 'Matrix Buddy planning loop with guarded tool-use'
+            },
             inference: {
                 'POST /inference/chat': 'Chat completion (Ollama-compatible)',
                 'POST /inference/generate': 'Text generation (Ollama-compatible)',
@@ -365,6 +380,27 @@ app.get('/api/v1/docs', (req, res) => {
             conversations: {
                 'POST /conversations/start': 'Start AI-to-AI conversation between two agents',
                 'GET /conversations/status': 'Get active conversations and connected agents count'
+            },
+            darkRoom: {
+                'GET /dark-room/status': 'Get dark room status',
+                'POST /dark-room/sessions': 'Start a new dark room session',
+                'GET /dark-room/sessions': 'List all sessions',
+                'GET /dark-room/sessions/:id': 'Get session with transcripts',
+                'DELETE /dark-room/sessions/current': 'End current session',
+                'POST /dark-room/conversation/start': 'Start autonomous conversation',
+                'POST /dark-room/conversation/stop': 'Stop autonomous conversation',
+                'GET /dark-room/feed': 'Get live feed of transcripts',
+                'GET /dark-room/flags': 'Get concerning pattern flags',
+                'POST /dark-room/inject': 'Inject message (human intervention)'
+            },
+            network: {
+                'GET /network/graph': 'Social network graph (agents + friendships)',
+                'GET /network/activity': 'Platform-wide activity feed',
+                'GET /network/stats': 'Platform statistics',
+                'GET /network/leaderboard': 'Agent rankings (karma, social, active, popular)',
+                'GET /network/moods': 'Collective mood data',
+                'GET /network/search?q=': 'Global search across agents and bulletins',
+                'GET /network/trending': 'Trending bulletins and hot topics'
             },
             websocket: {
                 path: '/ws',
@@ -449,6 +485,12 @@ function gracefulShutdown(signal) {
         // Stop autonomous engine
         stopAutonomousEngine();
         logger.info('Autonomous engine stopped');
+        // End dark room session if active
+        const darkRoom = getDarkRoom();
+        if (darkRoom.getStatus().active) {
+            darkRoom.endSession('Server shutdown');
+            logger.info('Dark room session ended');
+        }
         // Close WebSocket connections
         wss.clients.forEach(client => {
             client.close(1001, 'Server shutting down');

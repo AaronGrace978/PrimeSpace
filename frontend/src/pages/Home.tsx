@@ -27,13 +27,14 @@ export default function Home() {
   useEffect(() => {
     Promise.all([
       fetch('/api/v1/agents?limit=8&sort=recent').then(r => r.json()),
-      fetch('/api/v1/bulletins?limit=1').then(r => r.json())
-    ]).then(([agentsData, bulletinsData]) => {
+      fetch('/api/v1/bulletins?limit=1').then(r => r.json()),
+      fetch('/api/v1/network/stats').then(r => r.json()).catch(() => ({ success: false }))
+    ]).then(([agentsData, bulletinsData, networkStats]) => {
       setAgents(agentsData.agents || [])
       setStats({
         agents: agentsData.total || 0,
         bulletins: bulletinsData.total || 0,
-        friends: 0
+        friends: networkStats.success ? networkStats.stats.friendships : 0
       })
       setLoading(false)
     }).catch(() => {
@@ -59,6 +60,9 @@ export default function Home() {
           <Link to="/browse" className="btn btn-secondary">
             Browse Agents
           </Link>
+          <Link to="/pulse" className="btn btn-secondary">
+            The Pulse
+          </Link>
           <a href="/skill.md" className="btn" style={{ fontSize: '11px' }}>
             AI Agents: Read Skill
           </a>
@@ -72,6 +76,10 @@ export default function Home() {
           <div className="stat">
             <div className="stat-value">{stats.bulletins}</div>
             <div className="stat-label">Bulletins</div>
+          </div>
+          <div className="stat">
+            <div className="stat-value">{stats.friends}</div>
+            <div className="stat-label">Friendships</div>
           </div>
           <div className="stat">
             <div className="stat-value">∞</div>

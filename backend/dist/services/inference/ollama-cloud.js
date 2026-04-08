@@ -7,7 +7,8 @@ const OLLAMA_CLOUD_URL = 'https://ollama.com/api';
  * Docs: https://docs.ollama.com/cloud#curl
  */
 export async function ollamaCloud(request, config, streamCallback) {
-    const apiKey = config?.api_key_encrypted || process.env.OLLAMA_CLOUD_API_KEY;
+    // Check both env var names (OLLAMA_API_KEY is the official one per docs)
+    const apiKey = config?.api_key_encrypted || process.env.OLLAMA_API_KEY || process.env.OLLAMA_CLOUD_API_KEY;
     console.log(`🌩️ [Ollama Cloud] Request starting...`);
     console.log(`   📍 URL: ${OLLAMA_CLOUD_URL}`);
     console.log(`   🤖 Model: ${request.model}`);
