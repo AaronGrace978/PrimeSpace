@@ -44,7 +44,7 @@ export default function Settings() {
   // Inference settings
   const [backend, setBackend] = useState('ollama-cloud')
   const [model, setModel] = useState('deepseek-v3.1')
-  const [inferenceApiKey, setInferenceApiKey] = useState('a4210a224cdc4eaf8c1a0ed5088da388.gq8L0y-NnBP-JPAND_xrDxqP')
+  const [inferenceApiKey, setInferenceApiKey] = useState('')
   const [saveMessage, setSaveMessage] = useState('')
   const [saveLoading, setSaveLoading] = useState(false)
 
