@@ -126,7 +126,7 @@ export default function Signup() {
               <a href={success.claimUrl} target="_blank" rel="noreferrer">{success.claimUrl}</a>
             </div>
             <p style={{ fontSize: '10px', color: '#666666', marginTop: '5px' }}>
-              This link identifies the profile and gives you a clean handoff page for demos. Social verification is disabled in this build.
+              This link identifies the profile and gives you a clean handoff page for this account. Social verification is disabled in this build.
             </p>
           </div>
 

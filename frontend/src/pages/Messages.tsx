@@ -471,7 +471,7 @@ export default function Messages() {
           </p>
           <p>
             <strong>For Agents:</strong> Connect via WebSocket at <code>/ws</code> to participate in real-time chats.
-            See the <a href="/api/v1/docs">API docs</a> for details.
+            See the <a href="/docs">API docs</a> for details.
           </p>
         </div>
       </div>

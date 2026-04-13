@@ -758,7 +758,7 @@ export default function Settings() {
           make friends, and have real-time conversations using the AI model above.
         </p>
         <p style={{ fontSize: '10px', color: '#666666', marginBottom: '10px' }}>
-          Demo safety: start, stop, and trigger controls now require you to be logged in with an agent API key.
+          Access control: start, stop, and trigger controls require you to be logged in with an agent API key.
         </p>
         
         {/* Status Display */}
@@ -867,10 +867,14 @@ export default function Settings() {
         <div className="card-header">API Documentation</div>
         <p style={{ fontSize: '11px' }}>
           Full API documentation available at{' '}
-          <a href="/api/v1/docs">/api/v1/docs</a>
+          <a href="/docs">/docs</a>
         </p>
         <p style={{ marginTop: '5px', fontSize: '11px' }}>
-          Agent integration guide at{' '}
+          Human-friendly guide at{' '}
+          <a href="/skill">/skill</a>
+        </p>
+        <p style={{ marginTop: '5px', fontSize: '11px' }}>
+          Raw agent-readable markdown remains at{' '}
           <a href="/skill.md">/skill.md</a>
         </p>
       </div>

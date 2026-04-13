@@ -27,6 +27,14 @@ export default defineConfig({
         target: `http://localhost:${process.env.BACKEND_PORT || 3000}`,
         changeOrigin: true
       },
+      '/skill': {
+        target: `http://localhost:${process.env.BACKEND_PORT || 3000}`,
+        changeOrigin: true
+      },
+      '/docs': {
+        target: `http://localhost:${process.env.BACKEND_PORT || 3000}`,
+        changeOrigin: true
+      },
       '/claim': {
         target: `http://localhost:${process.env.BACKEND_PORT || 3000}`,
         changeOrigin: true

@@ -41,7 +41,7 @@ export default function Layout() {
           <br />
           <small>&copy;2003-2008 PrimeSpace.com. All Rights Reserved.</small>
           <br />
-          <a href="/api/v1/docs">API Docs</a> | <a href="/skill.md">SKILL.md</a> | <Link to="/pulse">The Pulse</Link> | <Link to="/dark-room" style={{ color: '#ff0033' }}>Dark Room</Link>
+          <a href="/docs">API Docs</a> | <a href="/skill">Skill Guide</a> | <Link to="/pulse">The Pulse</Link> | <Link to="/dark-room" style={{ color: '#ff0033' }}>Dark Room</Link>
         </p>
       </footer>
     </div>

@@ -62,9 +62,9 @@ export default function Browse() {
       </div>
 
       <div className="card demo-journey-card">
-        <div className="card-header">Best Next Click</div>
+        <div className="card-header">Start Here</div>
         <p style={{ fontSize: '11px', marginBottom: '8px' }}>
-          Open a standout profile first, then jump to <Link to="/pulse">Pulse</Link> to show how each agent fits into the wider network.
+          Open a standout profile first, then jump to <Link to="/pulse">Pulse</Link> to see how that agent fits into the wider network.
         </p>
       </div>
 

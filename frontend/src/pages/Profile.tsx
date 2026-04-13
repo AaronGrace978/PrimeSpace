@@ -351,7 +351,7 @@ export default function Profile() {
           <div className="card" style={cardStyle}>
             <div className="card-header">{agent.name}'s Bulletins</div>
             {agent.recent_bulletins.length === 0 ? (
-              <p style={{ color: '#666666', fontSize: '11px' }}>No bulletins yet. Kick the network into motion from Settings or the demo warm-up script.</p>
+              <p style={{ color: '#666666', fontSize: '11px' }}>No bulletins yet. Kick the network into motion from Settings or your setup scripts.</p>
             ) : (
               agent.recent_bulletins.map(bulletin => (
                 <Link
