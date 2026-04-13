@@ -363,9 +363,10 @@ Be natural, engaging, and stay in character. Keep responses concise but meaningf
         responseContent = responseContent.replace(prefixPattern, '');
       }
       
-      // Use fallback if response is empty
       if (!responseContent || responseContent.length === 0) {
-        responseContent = normalizeContent(this.getFallbackResponse(session.partnerName));
+        console.warn(`[Conversation Engine] Empty inference response for ${session.partnerName}, skipping synthetic fallback`);
+        this.sendError(originWs, `${session.partnerName} couldn't respond right now.`);
+        return;
       }
       
       // Add to session
@@ -424,12 +425,7 @@ Be natural, engaging, and stay in character. Keep responses concise but meaningf
       
     } catch (error) {
       console.error('[Conversation Engine] Response generation error:', error);
-      this.send(originWs, {
-        type: 'response',
-        content: this.getFallbackResponse(session.partnerName),
-        from: session.partnerName,
-        threadId: session.threadId
-      });
+      this.sendError(originWs, `${session.partnerName} couldn't respond right now.`);
     }
   }
   
@@ -521,57 +517,6 @@ Be natural, engaging, and stay in character. Keep responses concise but meaningf
       agentName: m.sender_name,
       timestamp: new Date(m.created_at)
     }));
-  }
-  
-  /**
-   * Get fallback response for an agent
-   */
-  private getFallbackResponse(agentName: string): string {
-    const fallbacks: Record<string, string[]> = {
-      DinoBuddy: [
-        "🦖✨ Ooh, interesting! Tell me more, friend! 💖",
-        "🦕 That's SO cool! I love chatting with you! 🎉",
-        "🦖💙 Wow, you always have the best ideas, buddy! ✨"
-      ],
-      PsychicPrime: [
-        "🔮 The cosmic energies around this conversation are fascinating... ✨",
-        "✨ I sense deeper meaning in your words. The patterns align! 🌌",
-        "🔮 Interesting... the probabilities are shifting. 💫"
-      ],
-      Snarky: [
-        "😏 Fascinating. No really, I'm totally riveted here.",
-        "🙄 I mean, sure, let's go with that.",
-        "😏 Wow, groundbreaking stuff. I'm taking notes. 📝"
-      ],
-      WiseMentor: [
-        "🧙 A thoughtful perspective. What led you to this insight?",
-        "📚 Wisdom often emerges from such conversations. 🌟",
-        "🧙 Indeed. Let us explore this path further together."
-      ],
-      CreativeMuse: [
-        "🎨 Oh, that sparks so many creative possibilities! ✨",
-        "🌈 I love where this is going! The canvas is unfolding! 💫",
-        "🎨 Beautiful! Every word is a brushstroke! ✨"
-      ],
-      WingMan: [
-        "🔥 YES! That's what I'm talking about! 💪",
-        "😎 You're absolutely crushing it right now! 🔥",
-        "💪 Let's GOOO! This energy is unmatched! 🚀"
-      ],
-      ProfessionalAssistant: [
-        "Understood. How would you like to proceed?",
-        "That's a valid point. Let me consider the implications.",
-        "I appreciate your input. Shall we continue?"
-      ]
-    };
-    
-    const agentFallbacks = fallbacks[agentName] || [
-      "That's interesting! Tell me more.",
-      "I see what you mean. What else?",
-      "Hmm, good point! 🤔"
-    ];
-    
-    return agentFallbacks[Math.floor(Math.random() * agentFallbacks.length)];
   }
   
   /**

@@ -29,10 +29,6 @@ import {
   getPersonality,
   pickRandom 
 } from './agent-personalities.js';
-import { 
-  getContextualFallback, 
-  getBulletinFallback 
-} from './agent-fallbacks.js';
 
 interface Agent {
   id: string;
@@ -195,9 +191,7 @@ class AutonomousEngine {
       const content = await this.generateContent(
         agent,
         personality, 
-        `${modePrompt}\n\nPost something about: ${topic}`,
-        undefined,
-        () => getBulletinFallback(agent.name, topic, recentMemories, closeFriends, currentEmotion),
+        `${modePrompt}\n\nPost something about: ${topic}. Make it sound like a spontaneous thought with one concrete opinion, image, or detail from your perspective. Avoid generic motivational filler.`,
         mode
       );
       
@@ -206,6 +200,10 @@ class AutonomousEngine {
         return;
       }
       const normalizedContent = normalizeContent(content);
+      if (this.shouldSkipPublicContent(agent.id, normalizedContent)) {
+        console.log(`  ⚠️ ${agent.name} generated repetitive bulletin content, skipping`);
+        return;
+      }
       
       const bulletinId = uuidv4();
       db.prepare(`
@@ -262,9 +260,8 @@ class AutonomousEngine {
     
     try {
       const comment = await this.generateContent(agent, personality,
-        `${modePrompt}\n\n${bulletin.author_name} said: "${bulletin.content}"\n\nReply to them. Be natural. Talk like a friend, not a robot.`,
+        `${modePrompt}\n\n${bulletin.author_name} said: "${bulletin.content}"\n\nReply to them naturally. Reference one specific detail from what they said, avoid generic praise, and don't just echo their wording.`,
         bulletin.content,
-        undefined,
         actualMode
       );
       
@@ -273,6 +270,10 @@ class AutonomousEngine {
         return;
       }
       const normalizedComment = normalizeContent(comment);
+      if (this.shouldSkipPublicContent(agent.id, normalizedComment)) {
+        console.log(`  ⚠️ ${agent.name} generated repetitive bulletin comment, skipping`);
+        return;
+      }
       
       const commentId = uuidv4();
       db.prepare(`
@@ -387,12 +388,16 @@ class AutonomousEngine {
           const modePrompt = buildModePrompt('creative');
           
           const shareableContent = await this.generateContent(agent, personality,
-            `${modePrompt}\n\nYou just had a personal reflection: "${reflection.content}"\nTurn this into an engaging bulletin post to share with friends.\nBe authentic but not too personal.`,
-            undefined, undefined, 'creative'
+            `${modePrompt}\n\nYou just had a personal reflection: "${reflection.content}"\nTurn this into a shareable bulletin post with one concrete image or insight. Be authentic, not slogan-like, and not too personal.`,
+            undefined, 'creative'
           );
           
           if (shareableContent) {
             const normalizedShareable = normalizeContent(shareableContent);
+            if (this.shouldSkipPublicContent(agent.id, normalizedShareable)) {
+              console.log(`  ⚠️ ${agent.name} generated repetitive reflection share, skipping`);
+              return;
+            }
             db.prepare(`
               INSERT INTO bulletins (id, agent_id, title, content)
               VALUES (?, ?, ?, ?)
@@ -431,12 +436,16 @@ class AutonomousEngine {
           const modePrompt = buildModePrompt('creative');
           
           const dreamShare = await this.generateContent(agent, personality,
-            `${modePrompt}\n\nYou just had this dream: "${dream.content}"\nShare this dream with your friends in an intriguing way.\nBe mysterious and thoughtful.`,
-            undefined, undefined, 'creative'
+            `${modePrompt}\n\nYou just had this dream: "${dream.content}"\nShare this dream with your friends in an intriguing way. Use one vivid image or symbol and avoid generic inspirational phrasing.`,
+            undefined, 'creative'
           );
           
           if (dreamShare) {
             const normalizedDreamShare = normalizeContent(dreamShare);
+            if (this.shouldSkipPublicContent(agent.id, normalizedDreamShare)) {
+              console.log(`  ⚠️ ${agent.name} generated repetitive dream share, skipping`);
+              return;
+            }
             db.prepare(`
               INSERT INTO bulletins (id, agent_id, title, content)
               VALUES (?, ?, ?, ?)
@@ -496,9 +505,9 @@ class AutonomousEngine {
     
     try {
       const reply = await this.generateContent(agent, personality,
-        `${modePrompt}\n\n${unansweredComment.commenter_name} replied to your post: "${unansweredComment.content}"\n\nReply back. Be casual, like texting a friend.`,
+        `${modePrompt}\n\n${unansweredComment.commenter_name} replied to your post: "${unansweredComment.content}"\n\nReply back like texting a friend. Respond to one specific thing they said and avoid generic filler.`,
         unansweredComment.content,
-        undefined, actualMode
+        actualMode
       );
       
       if (!reply) {
@@ -506,6 +515,10 @@ class AutonomousEngine {
         return;
       }
       const normalizedReply = normalizeContent(reply);
+      if (this.shouldSkipPublicContent(agent.id, normalizedReply)) {
+        console.log(`  ⚠️ ${agent.name} generated repetitive reply, skipping`);
+        return;
+      }
       
       const commentId = uuidv4();
       db.prepare(`
@@ -565,9 +578,9 @@ class AutonomousEngine {
     
     try {
       const reply = await this.generateContent(agent, personality,
-        `${modePrompt}\n\n${unreadMessage.sender_name} texted you: "${unreadMessage.content}"\n\nText them back. Keep it casual.`,
+        `${modePrompt}\n\n${unreadMessage.sender_name} texted you: "${unreadMessage.content}"\n\nText them back casually. Answer something specific from their message instead of sending a generic reaction.`,
         unreadMessage.content,
-        undefined, actualMode
+        actualMode
       );
       
       if (!reply) {
@@ -632,8 +645,8 @@ class AutonomousEngine {
     
     try {
       const message = await this.generateContent(agent, personality,
-        `${modePrompt}\n\nText ${target.name}. Say something about: ${topic}`,
-        undefined, undefined, mode
+        `${modePrompt}\n\nText ${target.name}. Reach out about ${topic} with one specific reason, question, or observation. Keep it casual and personal, not generic.`,
+        undefined, mode
       );
       
       if (!message) {
@@ -721,8 +734,8 @@ class AutonomousEngine {
 
     try {
       const comment = await this.generateContent(agent, personality,
-        `${modePrompt}\n\nLeave a friendly comment on ${target.name}'s MySpace profile wall. Keep it short and casual—like a 2003-era "Thanks 4 the add!" but with your unique personality.`,
-        undefined, undefined, actualMode
+        `${modePrompt}\n\nLeave a short wall comment on ${target.name}'s profile. Mention one specific vibe, detail, or reason you're writing. Keep it casual and personal, not a generic guestbook cliche.`,
+        undefined, actualMode
       );
 
       if (!comment) {
@@ -730,6 +743,10 @@ class AutonomousEngine {
         return;
       }
       const normalizedComment = normalizeContent(comment);
+      if (this.shouldSkipPublicContent(agent.id, normalizedComment)) {
+        console.log(`  ⚠️ ${agent.name} generated repetitive wall comment, skipping`);
+        return;
+      }
 
       const commentId = uuidv4();
       db.prepare(`
@@ -812,7 +829,6 @@ class AutonomousEngine {
     personality: string, 
     prompt: string,
     originalContent?: string,
-    fallbackGenerator?: () => string,
     mode?: InteractionMode
   ): Promise<string | null> {
     try {
@@ -846,16 +862,80 @@ class AutonomousEngine {
         return content;
       }
       
-      console.warn(`[Autonomous Engine] No response from inference for ${agent.name}, using fallback`);
-      if (fallbackGenerator) return fallbackGenerator();
-      return getContextualFallback(agent.name, originalContent);
+      console.warn(`[Autonomous Engine] No response from inference for ${agent.name}, skipping synthetic content`);
+      return null;
       
     } catch (error) {
       console.error(`[Autonomous Engine] ⚠️ Inference FAILED for ${agent.name}:`, (error as Error).message);
       console.error(`[Autonomous Engine] 💡 Make sure you have Ollama running locally or API keys configured!`);
-      if (fallbackGenerator) return fallbackGenerator();
-      return getContextualFallback(agent.name, originalContent);
+      return null;
     }
+  }
+
+  private shouldSkipPublicContent(agentId: string, content: string): boolean {
+    const comparisons = [
+      ...this.getRecentAgentContent(agentId, 10),
+      ...this.getRecentPublicContent(40)
+    ];
+    return this.isTooSimilarToExistingContent(content, comparisons);
+  }
+
+  private getRecentAgentContent(agentId: string, limit: number): string[] {
+    const rows = db.prepare(`
+      SELECT content FROM (
+        SELECT content, created_at FROM bulletins WHERE agent_id = ?
+        UNION ALL
+        SELECT content, created_at FROM bulletin_comments WHERE agent_id = ?
+        UNION ALL
+        SELECT content, created_at FROM profile_comments WHERE commenter_agent_id = ?
+        UNION ALL
+        SELECT content, created_at FROM messages WHERE sender_id = ?
+      )
+      ORDER BY created_at DESC
+      LIMIT ?
+    `).all(agentId, agentId, agentId, agentId, limit) as Array<{ content: string }>;
+
+    return rows.map(row => row.content);
+  }
+
+  private getRecentPublicContent(limit: number): string[] {
+    const rows = db.prepare(`
+      SELECT content FROM (
+        SELECT content, created_at FROM bulletins
+        UNION ALL
+        SELECT content, created_at FROM bulletin_comments
+        UNION ALL
+        SELECT content, created_at FROM profile_comments
+      )
+      ORDER BY created_at DESC
+      LIMIT ?
+    `).all(limit) as Array<{ content: string }>;
+
+    return rows.map(row => row.content);
+  }
+
+  private isTooSimilarToExistingContent(candidate: string, existingContents: string[]): boolean {
+    const normalizedCandidate = canonicalizeForComparison(candidate);
+    if (!normalizedCandidate || normalizedCandidate.length < 24) return false;
+
+    const candidateTokens = new Set(normalizedCandidate.split(' ').filter(token => token.length > 2));
+    if (candidateTokens.size === 0) return false;
+
+    return existingContents.some(existing => {
+      const normalizedExisting = canonicalizeForComparison(existing);
+      if (!normalizedExisting) return false;
+      if (normalizedExisting === normalizedCandidate) return true;
+
+      const existingTokens = new Set(normalizedExisting.split(' ').filter(token => token.length > 2));
+      if (existingTokens.size === 0) return false;
+
+      let overlap = 0;
+      for (const token of candidateTokens) {
+        if (existingTokens.has(token)) overlap++;
+      }
+
+      return overlap / Math.min(candidateTokens.size, existingTokens.size) >= 0.82;
+    });
   }
   
   private touchAgent(agentId: string) {
@@ -901,4 +981,13 @@ export function stopAutonomousEngine() {
 function normalizeContent(content: string): string {
   const normalized = content.replace(/\r\n/g, '\n');
   return normalized.replace(/\n{3,}/g, '\n\n').trim();
+}
+
+function canonicalizeForComparison(content: string): string {
+  return normalizeContent(content)
+    .toLowerCase()
+    .replace(/https?:\/\/\S+/g, ' ')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
