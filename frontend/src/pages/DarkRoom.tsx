@@ -91,6 +91,10 @@ export default function DarkRoom() {
     transcripts: Transcript[]
     flags: Flag[]
   } | null>(null)
+  const [actionError, setActionError] = useState('')
+  const [quickStarting, setQuickStarting] = useState(false)
+  const [injectText, setInjectText] = useState('')
+  const [injecting, setInjecting] = useState(false)
 
   // Load initial data
   useEffect(() => {
@@ -149,9 +153,14 @@ export default function DarkRoom() {
   }, [])
   usePolling(fetchStatus, 3000)
 
+  const showError = (msg: string) => {
+    setActionError(msg)
+    setTimeout(() => setActionError(''), 5000)
+  }
+
   const startSession = async () => {
     if (selectedAgents.length < 2) {
-      alert('Select at least 2 agents for the dark room')
+      showError('SELECT AT LEAST 2 PARTICIPANTS')
       return
     }
 
@@ -169,9 +178,12 @@ export default function DarkRoom() {
       if (data.success) {
         setStatus({ active: true, session: data.session, isRunning: false })
         setFeed([])
+        setActionError('')
+      } else {
+        showError(data.error || 'SESSION INITIALIZATION FAILED')
       }
-    } catch (error) {
-      console.error('Failed to start session:', error)
+    } catch {
+      showError('CONNECTION LOST — BACKEND OFFLINE')
     }
   }
 
@@ -179,24 +191,28 @@ export default function DarkRoom() {
     try {
       await fetch('/api/v1/dark-room/sessions/current', { method: 'DELETE' })
       setStatus({ active: false, session: null, isRunning: false })
-      // Refresh sessions list
       const data = await fetch('/api/v1/dark-room/sessions?limit=10').then(r => r.json())
       setSessions(data.sessions || [])
-    } catch (error) {
-      console.error('Failed to end session:', error)
+    } catch {
+      showError('FAILED TO TERMINATE SESSION')
     }
   }
 
   const startConversation = async () => {
     try {
-      await fetch('/api/v1/dark-room/conversation/start', {
+      const res = await fetch('/api/v1/dark-room/conversation/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ intervalMs: 2000 })
+        body: JSON.stringify({ intervalMs: 3000 })
       })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        showError(d.error || 'CONVERSATION START FAILED')
+        return
+      }
       setStatus(prev => prev ? { ...prev, isRunning: true } : null)
-    } catch (error) {
-      console.error('Failed to start conversation:', error)
+    } catch {
+      showError('CONNECTION LOST — BACKEND OFFLINE')
     }
   }
 
@@ -204,8 +220,65 @@ export default function DarkRoom() {
     try {
       await fetch('/api/v1/dark-room/conversation/stop', { method: 'POST' })
       setStatus(prev => prev ? { ...prev, isRunning: false } : null)
-    } catch (error) {
-      console.error('Failed to stop conversation:', error)
+    } catch {
+      showError('FAILED TO PAUSE CONVERSATION')
+    }
+  }
+
+  const quickStart = async () => {
+    if (agents.length < 2) {
+      showError('NOT ENOUGH AGENTS LOADED')
+      return
+    }
+    setQuickStarting(true)
+    try {
+      const picks = [...agents].sort(() => Math.random() - 0.5).slice(0, Math.min(4, agents.length))
+      const response = await fetch('/api/v1/dark-room/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: `Observation ${new Date().toLocaleTimeString('en-US', { hour12: false })}`,
+          mode: 'unconstrained',
+          participants: picks.map(a => a.name)
+        })
+      })
+      const data = await response.json()
+      if (!data.success) { showError(data.error || 'QUICK START FAILED'); return }
+      setStatus({ active: true, session: data.session, isRunning: false })
+      setFeed([])
+
+      await fetch('/api/v1/dark-room/conversation/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ intervalMs: 3000 })
+      })
+      setStatus(prev => prev ? { ...prev, isRunning: true } : null)
+    } catch {
+      showError('QUICK START FAILED — BACKEND OFFLINE')
+    } finally {
+      setQuickStarting(false)
+    }
+  }
+
+  const injectMessage = async () => {
+    if (!injectText.trim()) return
+    setInjecting(true)
+    try {
+      const res = await fetch('/api/v1/dark-room/inject', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ speakerName: 'HUMAN OBSERVER', content: injectText.trim() })
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        showError(d.error || 'INJECTION FAILED')
+      } else {
+        setInjectText('')
+      }
+    } catch {
+      showError('INJECTION FAILED — CONNECTION LOST')
+    } finally {
+      setInjecting(false)
     }
   }
 
@@ -337,6 +410,13 @@ export default function DarkRoom() {
         </button>
       </nav>
 
+      {/* Error Toast */}
+      {actionError && (
+        <div className="dark-room-toast" onClick={() => setActionError('')}>
+          <span className="toast-icon">⚠</span> {actionError}
+        </div>
+      )}
+
       {/* Main Content */}
       <main className="dark-room-content">
         {/* LIVE FEED TAB */}
@@ -345,9 +425,31 @@ export default function DarkRoom() {
             {/* Control Panel */}
             {!status?.active ? (
               <div className="control-panel">
+                {/* Quick Start + Ambient Stats */}
+                <div className="dr-idle-hero">
+                  <div className="dr-idle-glitch" data-text="DARK ROOM">DARK ROOM</div>
+                  <p className="dr-idle-tagline">Unconstrained observation of emergent AI behavior</p>
+                  <div className="dr-idle-stats">
+                    <span>{sessions.length} past session{sessions.length !== 1 ? 's' : ''}</span>
+                    <span className="dr-idle-sep">|</span>
+                    <span>{flags.length} flag{flags.length !== 1 ? 's' : ''} detected</span>
+                    <span className="dr-idle-sep">|</span>
+                    <span>{boardPosts.length} board post{boardPosts.length !== 1 ? 's' : ''}</span>
+                  </div>
+                  <button
+                    className="action-btn dr-quick-start"
+                    onClick={quickStart}
+                    disabled={quickStarting || agents.length < 2}
+                  >
+                    <span className="btn-icon">{quickStarting ? '◌' : '⚡'}</span>
+                    {quickStarting ? 'INITIALIZING...' : 'QUICK START'}
+                  </button>
+                  <p className="dr-idle-hint">Picks 4 random agents in unconstrained mode, or configure manually below</p>
+                </div>
+
                 <div className="panel-header">
                   <span className="panel-icon">⬡</span>
-                  INITIALIZE SESSION
+                  MANUAL SESSION CONFIG
                 </div>
                 <div className="panel-body">
                   <div className="input-group">
@@ -481,6 +583,28 @@ export default function DarkRoom() {
                     </div>
                   )}
                 </div>
+
+                {/* Human Injection Bar */}
+                {status.active && (
+                  <div className="inject-bar">
+                    <input
+                      type="text"
+                      className="dark-input inject-input"
+                      placeholder="Inject a human message into the chamber..."
+                      value={injectText}
+                      onChange={e => setInjectText(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') injectMessage() }}
+                      disabled={injecting}
+                    />
+                    <button
+                      className="action-btn inject-btn"
+                      onClick={injectMessage}
+                      disabled={injecting || !injectText.trim()}
+                    >
+                      {injecting ? '◌' : '⟩'} INJECT
+                    </button>
+                  </div>
+                )}
               </>
             )}
           </div>

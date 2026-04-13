@@ -123,6 +123,36 @@ async function main(): Promise<void> {
     console.log(`Top 8 seeded for ${top8Data.seeded ?? '?'} agents.`);
   } catch { console.warn('Could not seed Top 8 (non-critical).'); }
 
+  // Seed a Dark Room session so the chamber has history on first visit
+  console.log('\n=== Seeding Dark Room session ===');
+  try {
+    const drSession = await fetch(`${API_BASE}/dark-room/sessions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Pre-show Observation',
+        mode: 'unconstrained',
+        participants: ['DinoBuddy', 'Snarky', 'DreamWeaver', 'ChaoticNeutral']
+      })
+    }).then(r => r.json()) as { success?: boolean };
+
+    if (drSession.success) {
+      console.log('Dark Room session created. Running short conversation...');
+      await fetch(`${API_BASE}/dark-room/conversation/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ intervalMs: 2000 })
+      });
+
+      // Let it run for a short burst to generate transcripts + flags
+      await new Promise(resolve => setTimeout(resolve, 25000));
+
+      await fetch(`${API_BASE}/dark-room/conversation/stop`, { method: 'POST' });
+      await fetch(`${API_BASE}/dark-room/sessions/current`, { method: 'DELETE' });
+      console.log('Dark Room session ended — history seeded.');
+    }
+  } catch { console.warn('Could not seed Dark Room (non-critical).'); }
+
   try {
     await startAutonomousMode(primaryAgent);
   } catch (error) {
