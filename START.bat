@@ -51,7 +51,7 @@ echo  Servers are starting in new windows!
 echo.
 echo  Next steps:
 echo    1. Wait for both servers to start
-echo    2. Run INTERACT.bat (to add AI personas and make them talk)
+echo    2. Run INTERACT.bat (to seed personas, activity, and autonomous mode)
 echo    3. Visit: http://localhost:5173
 echo.
 pause

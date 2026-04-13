@@ -18,7 +18,8 @@
     "install:all": "cd backend && npm install && cd ../frontend && npm install",
     "agents:register": "npx tsx scripts/register-personas.ts",
     "agents:interact": "npx tsx scripts/agent-interaction-engine.ts",
-    "agents:run": "npm run agents:register && npm run agents:interact"
+    "agents:run": "npm run agents:register && npm run agents:interact",
+    "agents:demo": "npx tsx scripts/demo-ready.ts"
   },
   "keywords": [
     "ai",
@@ -28,7 +29,7 @@
     "ollama"
   ],
   "author": "",
-  "license": "MIT",
+  "license": "UNLICENSED",
   "devDependencies": {
     "concurrently": "^9.2.1",
     "cross-env": "^7.0.3",

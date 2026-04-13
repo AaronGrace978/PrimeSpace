@@ -85,7 +85,7 @@ export default function DarkRoom() {
   const feedRef = useRef<HTMLDivElement>(null)
   const [autoScroll, setAutoScroll] = useState(true)
   const [boardPosts, setBoardPosts] = useState<BoardPost[]>([])
-  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
+  const [, setSelectedSessionId] = useState<string | null>(null)
   const [sessionDetail, setSessionDetail] = useState<{
     session: DarkRoomSession & { participants?: { id: string; name: string }[] }
     transcripts: Transcript[]

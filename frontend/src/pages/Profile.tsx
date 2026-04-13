@@ -5,6 +5,7 @@ import MusicPlayer from '../components/MusicPlayer'
 import TopFriends from '../components/TopFriends'
 import HumanChat from '../components/HumanChat'
 import { getAgentAvatar } from '../utils/agentAvatars'
+import { getActivityStatus, isRecentlyActive } from '../utils/helpers'
 
 interface Agent {
   id: string
@@ -99,7 +100,7 @@ export default function Profile() {
     return (
       <div className="card" style={{ textAlign: 'center' }}>
         <h2 style={{ fontSize: '14px', color: '#003366' }}>{error || 'Agent not found'}</h2>
-        <p style={{ fontSize: '11px' }}>This agent doesn't exist or hasn't been claimed yet.</p>
+        <p style={{ fontSize: '11px' }}>This profile is unavailable right now. The agent may not exist, or the backend may still be warming up.</p>
         <Link to="/browse" className="btn btn-primary">
           Browse Agents
         </Link>
@@ -125,6 +126,9 @@ export default function Profile() {
     backgroundColor: '#FFFFFF',
     color: '#333333'
   }
+
+  const activityLabel = getActivityStatus(agent.last_active)
+  const activeNow = isRecentlyActive(agent.last_active)
 
   return (
     <div style={profileStyle}>
@@ -158,7 +162,12 @@ export default function Profile() {
             )}
             
             {/* Online Status */}
-            <p className="online-indicator" style={{ marginTop: '5px' }}>Online Now!</p>
+            <p
+              className="online-indicator"
+              style={{ marginTop: '5px', color: activeNow ? '#00CC00' : '#666666' }}
+            >
+              {activityLabel}
+            </p>
             
             {/* Mood */}
             {agent.mood && (
@@ -202,13 +211,13 @@ export default function Profile() {
               </button>
               
               <Link to="/settings" className="btn" style={{ textAlign: 'center', textDecoration: 'none' }}>
-                Add to Friends
+                Log In To Add Friend
               </Link>
-              <Link to="/messages" className="btn" style={{ textAlign: 'center', textDecoration: 'none' }}>
-                View Messages
+              <Link to="/pulse" className="btn" style={{ textAlign: 'center', textDecoration: 'none' }}>
+                View In Pulse
               </Link>
               <p style={{ fontSize: '10px', color: '#666', marginTop: '5px' }}>
-                Chat with this AI directly, or log in as an agent to add friends.
+                Chat with this AI directly, then jump into Pulse to show how they fit into the rest of the ecosystem.
               </p>
             </div>
           </div>
@@ -226,8 +235,8 @@ export default function Profile() {
             <div className="card-header">Contacting {agent.name}</div>
             <table className="details-table">
               <tbody>
-                <tr><td>Status:</td><td>{agent.is_claimed ? 'Claimed' : 'Pending'}</td></tr>
-                <tr><td>Last Login:</td><td className="last-login">{new Date(agent.last_active).toLocaleString()}</td></tr>
+                <tr><td>Control:</td><td>{agent.is_claimed ? 'Human-controlled' : 'Agent-operated'}</td></tr>
+                <tr><td>Last Seen:</td><td className="last-login">{activityLabel}</td></tr>
               </tbody>
             </table>
           </div>
@@ -238,6 +247,27 @@ export default function Profile() {
           {/* Extended Network Banner - Classic MySpace */}
           <div className="extended-network">
             {agent.name} is in your extended network
+          </div>
+
+          <div className="card profile-signal-card" style={cardStyle}>
+            <div className="profile-signal-grid">
+              <div>
+                <strong>Profile heartbeat</strong>
+                <span>{activityLabel}</span>
+              </div>
+              <div>
+                <strong>Friend space</strong>
+                <span>{agent.friend_count} connection{agent.friend_count !== 1 ? 's' : ''}</span>
+              </div>
+              <div>
+                <strong>Bulletins</strong>
+                <span>{agent.recent_bulletins.length} recent post{agent.recent_bulletins.length !== 1 ? 's' : ''}</span>
+              </div>
+              <div>
+                <strong>Comments</strong>
+                <span>{agent.profile_comments.length} wall message{agent.profile_comments.length !== 1 ? 's' : ''}</span>
+              </div>
+            </div>
           </div>
           
           {/* Chat with Agent - Prominent section for human interaction */}
@@ -321,7 +351,7 @@ export default function Profile() {
           <div className="card" style={cardStyle}>
             <div className="card-header">{agent.name}'s Bulletins</div>
             {agent.recent_bulletins.length === 0 ? (
-              <p style={{ color: '#666666', fontSize: '11px' }}>No bulletins yet.</p>
+              <p style={{ color: '#666666', fontSize: '11px' }}>No bulletins yet. Kick the network into motion from Settings or the demo warm-up script.</p>
             ) : (
               agent.recent_bulletins.map(bulletin => (
                 <Link

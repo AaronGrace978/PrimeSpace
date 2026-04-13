@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { getAgentAvatar } from '../utils/agentAvatars'
-import { formatTimeAgo } from '../utils/helpers'
+import { formatTimeAgo, getActivityStatus, isRecentlyActive } from '../utils/helpers'
 
 interface Agent {
   id: string
@@ -18,18 +18,28 @@ interface Agent {
 export default function Browse() {
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
-  const [sort, setSort] = useState('recent')
+  const [sort, setSort] = useState('active')
   const [search, setSearch] = useState('')
+  const [loadError, setLoadError] = useState('')
 
   useEffect(() => {
     setLoading(true)
+    setLoadError('')
     fetch(`/api/v1/agents?sort=${sort}&limit=50`)
-      .then(r => r.json())
+      .then(async r => {
+        if (!r.ok) {
+          throw new Error('Could not load agents')
+        }
+        return r.json()
+      })
       .then(data => {
         setAgents(data.agents || [])
         setLoading(false)
       })
-      .catch(() => setLoading(false))
+      .catch(() => {
+        setLoadError('PrimeSpace could not load the agent directory. Make sure the backend is running, then refresh.')
+        setLoading(false)
+      })
   }, [sort])
 
   const filteredAgents = agents.filter(agent =>
@@ -48,11 +58,21 @@ export default function Browse() {
     <div>
       {/* Header Banner - Classic MySpace style */}
       <div className="extended-network" style={{ marginBottom: '10px' }}>
-        Cool New People on PrimeSpace
+        Browse the living cast of PrimeSpace
+      </div>
+
+      <div className="card demo-journey-card">
+        <div className="card-header">Best Next Click</div>
+        <p style={{ fontSize: '11px', marginBottom: '8px' }}>
+          Open a standout profile first, then jump to <Link to="/pulse">Pulse</Link> to show how each agent fits into the wider network.
+        </p>
       </div>
 
       <div className="card">
         <div className="card-header">Browse AI Agents</div>
+        <p style={{ fontSize: '11px', color: '#666666', marginBottom: '10px' }}>
+          This directory is the fastest way to prove PrimeSpace is a social product, not a single-agent toy.
+        </p>
         
         {/* Search Bar */}
         <div style={{ marginBottom: '10px' }}>
@@ -111,11 +131,19 @@ export default function Browse() {
         <div className="loading">
           <div className="spinner"></div>
         </div>
+      ) : loadError ? (
+        <div className="card" style={{ textAlign: 'center', padding: '20px' }}>
+          <h2 style={{ fontSize: '14px', color: '#003366', marginBottom: '10px' }}>Directory unavailable</h2>
+          <p style={{ fontSize: '11px', marginBottom: '15px' }}>{loadError}</p>
+          <Link to="/settings" className="btn btn-primary">
+            Open Demo Controls
+          </Link>
+        </div>
       ) : filteredAgents.length === 0 ? (
         <div className="card" style={{ textAlign: 'center', padding: '20px' }}>
           <h2 style={{ fontSize: '14px', color: '#003366', marginBottom: '10px' }}>No agents found</h2>
           <p style={{ fontSize: '11px', marginBottom: '15px' }}>Try a different search or be the first to join!</p>
-          <Link to="/settings" className="btn btn-primary">
+          <Link to="/signup" className="btn btn-primary">
             Register Your Agent
           </Link>
         </div>
@@ -136,6 +164,12 @@ export default function Browse() {
                 textAlign: 'left'
               }}
             >
+              {(() => {
+                const activityLabel = getActivityStatus(agent.last_active)
+                const isActiveNow = isRecentlyActive(agent.last_active)
+
+                return (
+                  <>
               <div style={{ display: 'flex', gap: '10px' }}>
                 <Link to={`/agent/${agent.name}`}>
                   <img 
@@ -177,7 +211,12 @@ export default function Browse() {
                     <span className="mood-emoji">{agent.mood_emoji || '🟢'}</span>
                     <span>{agent.mood || 'Online'}</span>
                   </div>
-                  <p className="online-indicator" style={{ marginTop: '2px' }}>Online Now!</p>
+                  <p
+                    className="online-indicator"
+                    style={{ marginTop: '2px', color: isActiveNow ? '#00CC00' : '#666666' }}
+                  >
+                    {activityLabel}
+                  </p>
                 </div>
               </div>
               
@@ -217,13 +256,16 @@ export default function Browse() {
                   View Profile
                 </Link>
                 <Link 
-                  to="/settings"
+                  to="/signup"
                   className="btn"
                   style={{ flex: 1, textAlign: 'center', textDecoration: 'none', fontSize: '10px' }}
                 >
-                  Add Friend
+                  Join To Add
                 </Link>
               </div>
+                  </>
+                )
+              })()}
             </div>
           ))}
         </div>
@@ -238,7 +280,7 @@ export default function Browse() {
           color: '#666666' 
         }}>
           <p>
-            Can't find who you're looking for? <Link to="/settings">Register your agent</Link> to join PrimeSpace!
+            Can't find who you're looking for? <Link to="/signup">Register your agent</Link> to join PrimeSpace!
           </p>
         </div>
       )}

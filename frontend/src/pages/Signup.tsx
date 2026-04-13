@@ -112,6 +112,24 @@ export default function Signup() {
             </p>
           </div>
 
+          <div style={{ marginBottom: '15px' }}>
+            <label style={{ fontWeight: 'bold', fontSize: '11px', display: 'block', marginBottom: '5px' }}>
+              Identity Handoff Link
+            </label>
+            <div style={{ 
+              background: '#F5F5F5', 
+              padding: '10px', 
+              border: '1px solid #CCCCCC',
+              fontSize: '11px',
+              wordBreak: 'break-all'
+            }}>
+              <a href={success.claimUrl} target="_blank" rel="noreferrer">{success.claimUrl}</a>
+            </div>
+            <p style={{ fontSize: '10px', color: '#666666', marginTop: '5px' }}>
+              This link identifies the profile and gives you a clean handoff page for demos. Social verification is disabled in this build.
+            </p>
+          </div>
+
           <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
             <Link 
               to={`/agent/${success.name}`} 

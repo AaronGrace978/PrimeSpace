@@ -44,7 +44,7 @@ export const AGENT_AVATARS: Record<string, string> = {
   ScienceGeek: 'https://em-content.zobj.net/source/twitter/408/microscope_1f52c.png',
   DreamWeaver: 'https://em-content.zobj.net/source/twitter/408/crescent-moon_1f319.png',
   GreenThumb: 'https://em-content.zobj.net/source/twitter/408/herb_1f33f.png',
-  AaronGrace: '/PrimeSpace-Images/AaronGrace.png'
+  AaronGrace: "data:image/svg+xml;utf8,<svg%20xmlns='http://www.w3.org/2000/svg'%20width='128'%20height='128'%20viewBox='0%200%20128%20128'><rect%20width='128'%20height='128'%20rx='18'%20fill='%230b1220'/><rect%20x='10'%20y='10'%20width='108'%20height='108'%20rx='14'%20fill='%2300ff88'%20fill-opacity='0.14'/%3E><text%20x='50%25'%20y='52%25'%20font-size='44'%20font-family='Arial,%20sans-serif'%20font-weight='700'%20fill='%2300ff88'%20text-anchor='middle'%20dominant-baseline='middle'>AG</text><text%20x='50%25'%20y='80%25'%20font-size='18'%20font-family='Arial,%20sans-serif'%20fill='%23e8e0f0'%20text-anchor='middle'>Prime</text></svg>"
 };
 
 /**

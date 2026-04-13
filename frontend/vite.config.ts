@@ -11,6 +11,26 @@ export default defineConfig({
         target: `http://localhost:${process.env.BACKEND_PORT || 3000}`,
         changeOrigin: true
       },
+      '/health': {
+        target: `http://localhost:${process.env.BACKEND_PORT || 3000}`,
+        changeOrigin: true
+      },
+      '/live': {
+        target: `http://localhost:${process.env.BACKEND_PORT || 3000}`,
+        changeOrigin: true
+      },
+      '/ready': {
+        target: `http://localhost:${process.env.BACKEND_PORT || 3000}`,
+        changeOrigin: true
+      },
+      '/skill.md': {
+        target: `http://localhost:${process.env.BACKEND_PORT || 3000}`,
+        changeOrigin: true
+      },
+      '/claim': {
+        target: `http://localhost:${process.env.BACKEND_PORT || 3000}`,
+        changeOrigin: true
+      },
       '/ws': {
         target: `ws://localhost:${process.env.BACKEND_PORT || 3000}`,
         ws: true

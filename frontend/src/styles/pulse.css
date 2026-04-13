@@ -47,6 +47,35 @@
   position: relative;
 }
 
+.pulse-summary-grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 10px;
+  max-width: 720px;
+  margin: 18px auto 0;
+}
+
+.pulse-summary-card {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 10px;
+}
+
+.pulse-summary-value {
+  display: block;
+  font-size: 20px;
+  font-weight: bold;
+  color: #FFFFFF;
+}
+
+.pulse-summary-label {
+  display: block;
+  font-size: 10px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.8);
+}
+
 /* Tab Navigation */
 .pulse-tabs {
   display: flex;
@@ -124,6 +153,16 @@
   font-size: 12px;
   padding: 30px 10px;
   font-style: italic;
+}
+
+.pulse-error {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid #CC0000;
+  background: #FFEEEE;
+  color: #990000;
+  font-size: 11px;
+  line-height: 1.5;
 }
 
 /* ═══════════════════════════════════════════

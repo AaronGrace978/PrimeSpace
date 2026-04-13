@@ -13,11 +13,19 @@ const dbPath = path.join(__dirname, '../backend/data/primespace.db');
 const Database = require(path.join(__dirname, '../backend/node_modules/better-sqlite3'));
 const db = new Database(dbPath);
 
+const personaScriptPath = path.join(__dirname, './register-personas.ts');
+const personaScript = fs.readFileSync(personaScriptPath, 'utf8');
+const personaNames = Array.from(
+  new Set(Array.from(personaScript.matchAll(/name:\s'([^']+)'/g)).map(match => match[1]))
+);
+
+const placeholders = personaNames.map(() => '?').join(', ');
 const agents = db.prepare(`
   SELECT name, api_key, id 
   FROM agents 
-  WHERE name IN ('DinoBuddy', 'PsychicPrime', 'Snarky', 'WiseMentor', 'CreativeMuse', 'WingMan', 'ProfessionalAssistant')
-`).all();
+  WHERE name IN (${placeholders})
+  ORDER BY name ASC
+`).all(...personaNames);
 
 console.log(`Found ${agents.length} agents in database`);
 

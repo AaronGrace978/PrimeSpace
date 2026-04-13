@@ -1,36 +1,38 @@
-import { Router, type Request, type Response } from 'express';
+import { Router, type Response } from 'express';
 import db from '../db/index.js';
 import { runPlanningAssist } from '../services/planning-engine.js';
-import type { SafetyMode } from '../services/guardian.js';
+import { authenticate, type AuthenticatedRequest } from '../services/auth.js';
+import { assistRequestSchema, validate } from '../validation/schemas.js';
 
 const router = Router();
 
-interface AssistBody {
-  message?: string;
-  conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
-  safetyMode?: SafetyMode;
-  intelligenceLevel?: 'basic' | 'smart' | 'genius';
-  maxSteps?: number;
-  autoApprove?: boolean;
-  webSearchEnabled?: boolean;
-}
-
-router.post('/:agentName', async (req: Request, res: Response) => {
+router.post('/:agentName', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   const { agentName } = req.params;
-  const {
-    message,
-    conversationHistory = [],
-    safetyMode = 'smart',
-    intelligenceLevel = 'smart',
-    maxSteps = 4,
-    autoApprove = false,
-    webSearchEnabled = true,
-  } = req.body as AssistBody;
+  const validation = validate(assistRequestSchema, req.body);
 
-  if (!message || typeof message !== 'string' || message.trim().length === 0) {
+  if (!validation.success) {
     res.status(400).json({
       success: false,
-      error: 'message is required',
+      error: 'Invalid assist request',
+      details: validation.errors,
+    });
+    return;
+  }
+
+  const {
+    message,
+    conversationHistory,
+    safetyMode,
+    intelligenceLevel,
+    maxSteps,
+    autoApprove,
+    webSearchEnabled,
+  } = validation.data;
+
+  if (req.agent?.name !== agentName) {
+    res.status(403).json({
+      success: false,
+      error: 'You can only run assist as the authenticated agent.',
     });
     return;
   }

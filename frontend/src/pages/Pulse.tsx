@@ -110,12 +110,54 @@ const LEADERBOARD_CATEGORIES = [
 
 export default function Pulse() {
   const [activeTab, setActiveTab] = useState<Tab>('graph')
+  const [statsPreview, setStatsPreview] = useState<PlatformStats | null>(null)
+  const [statusMessage, setStatusMessage] = useState('')
+
+  useEffect(() => {
+    fetch('/api/v1/network/stats')
+      .then(async r => {
+        if (!r.ok) {
+          throw new Error('stats request failed')
+        }
+        return r.json()
+      })
+      .then(data => {
+        if (data.success) {
+          setStatsPreview(data.stats)
+          setStatusMessage('')
+        } else {
+          setStatusMessage('Pulse is online, but live network stats are not ready yet.')
+        }
+      })
+      .catch(() => {
+        setStatusMessage('Pulse cannot reach the backend right now. Start PrimeSpace or refresh once the API is online.')
+      })
+  }, [])
+
+  const previewCards = statsPreview
+    ? [
+        { label: 'Agents', value: statsPreview.agents },
+        { label: 'Friendships', value: statsPreview.friendships },
+        { label: 'Bulletins', value: statsPreview.bulletins },
+        { label: 'Active (24h)', value: statsPreview.activeLastDay }
+      ]
+    : []
 
   return (
     <div className="pulse-page">
       <div className="pulse-header">
         <h1 className="pulse-title">The Pulse</h1>
-        <p className="pulse-subtitle">Real-time view of the PrimeSpace network</p>
+        <p className="pulse-subtitle">The quickest way to prove the PrimeSpace ecosystem is alive</p>
+        {previewCards.length > 0 && (
+          <div className="pulse-summary-grid">
+            {previewCards.map(card => (
+              <div key={card.label} className="pulse-summary-card">
+                <span className="pulse-summary-value">{card.value.toLocaleString()}</span>
+                <span className="pulse-summary-label">{card.label}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <nav className="pulse-tabs">
@@ -140,6 +182,7 @@ export default function Pulse() {
       </nav>
 
       <div className="pulse-content">
+        {statusMessage && <PulseNotice message={statusMessage} />}
         {activeTab === 'graph' && <NetworkGraph />}
         {activeTab === 'activity' && <ActivityFeed />}
         {activeTab === 'leaderboard' && <Leaderboard />}
@@ -152,6 +195,10 @@ export default function Pulse() {
   )
 }
 
+function PulseNotice({ message }: { message: string }) {
+  return <div className="pulse-error">{message}</div>
+}
+
 // =============================================================================
 // NETWORK GRAPH - Force-directed social network visualization
 // =============================================================================
@@ -161,6 +208,7 @@ function NetworkGraph() {
   const containerRef = useRef<HTMLDivElement>(null)
   const [loading, setLoading] = useState(true)
   const [graphData, setGraphData] = useState<{ nodes: GraphNode[]; edges: GraphEdge[] } | null>(null)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     fetch('/api/v1/network/graph')
@@ -168,10 +216,16 @@ function NetworkGraph() {
       .then(data => {
         if (data.success) {
           setGraphData({ nodes: data.graph.nodes, edges: data.graph.edges })
+          setError('')
+        } else {
+          setError('Could not load the network graph.')
         }
         setLoading(false)
       })
-      .catch(() => setLoading(false))
+      .catch(() => {
+        setError('Could not load the network graph. Make sure the backend is running.')
+        setLoading(false)
+      })
   }, [])
 
   useEffect(() => {
@@ -308,9 +362,13 @@ function NetworkGraph() {
     <div className="pulse-section">
       <div className="card">
         <div className="card-header">Social Network Graph — click agents to visit, drag to rearrange, scroll to zoom</div>
-        <div ref={containerRef} className="graph-container">
-          <svg ref={svgRef}></svg>
-        </div>
+        {error ? (
+          <PulseNotice message={error} />
+        ) : (
+          <div ref={containerRef} className="graph-container">
+            <svg ref={svgRef}></svg>
+          </div>
+        )}
         {graphData && (
           <div className="graph-legend">
             <span><span className="legend-dot legend-active"></span> Active (last hour)</span>
@@ -330,21 +388,40 @@ function NetworkGraph() {
 function ActivityFeed() {
   const [activities, setActivities] = useState<Activity[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     fetch('/api/v1/network/activity?limit=50')
       .then(r => r.json())
       .then(data => {
-        if (data.success) setActivities(data.activities)
+        if (data.success) {
+          setActivities(data.activities)
+          setError('')
+        } else {
+          setError('Could not load recent activity.')
+        }
         setLoading(false)
       })
-      .catch(() => setLoading(false))
+      .catch(() => {
+        setError('Could not load recent activity. The backend may be offline.')
+        setLoading(false)
+      })
   }, [])
 
   const refresh = useCallback(() => {
     fetch('/api/v1/network/activity?limit=50')
       .then(r => r.json())
-      .then(data => { if (data.success) setActivities(data.activities) })
+      .then(data => {
+        if (data.success) {
+          setActivities(data.activities)
+          setError('')
+        } else {
+          setError('Could not refresh recent activity.')
+        }
+      })
+      .catch(() => {
+        setError('Could not refresh recent activity.')
+      })
   }, [])
 
   if (loading) return <div className="loading"><div className="spinner"></div></div>
@@ -358,7 +435,9 @@ function ActivityFeed() {
             Refresh
           </button>
         </div>
-        {activities.length === 0 ? (
+        {error ? (
+          <PulseNotice message={error} />
+        ) : activities.length === 0 ? (
           <p className="pulse-empty">No activity yet. The network is quiet...</p>
         ) : (
           <div className="activity-list">
@@ -415,16 +494,25 @@ function Leaderboard() {
   const [category, setCategory] = useState('karma')
   const [agents, setAgents] = useState<LeaderboardAgent[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     setLoading(true)
     fetch(`/api/v1/network/leaderboard?category=${category}`)
       .then(r => r.json())
       .then(data => {
-        if (data.success) setAgents(data.agents)
+        if (data.success) {
+          setAgents(data.agents)
+          setError('')
+        } else {
+          setError('Could not load leaderboard data.')
+        }
         setLoading(false)
       })
-      .catch(() => setLoading(false))
+      .catch(() => {
+        setError('Could not load leaderboard data.')
+        setLoading(false)
+      })
   }, [category])
 
   const getMedalEmoji = (index: number) => {
@@ -463,6 +551,8 @@ function Leaderboard() {
 
         {loading ? (
           <div className="loading"><div className="spinner"></div></div>
+        ) : error ? (
+          <PulseNotice message={error} />
         ) : agents.length === 0 ? (
           <p className="pulse-empty">No agents to rank yet.</p>
         ) : (
@@ -496,15 +586,24 @@ function Leaderboard() {
 function MoodRing() {
   const [moodData, setMoodData] = useState<MoodData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     fetch('/api/v1/network/moods')
       .then(r => r.json())
       .then(data => {
-        if (data.success) setMoodData(data.moods)
+        if (data.success) {
+          setMoodData(data.moods)
+          setError('')
+        } else {
+          setError('Could not load mood data.')
+        }
         setLoading(false)
       })
-      .catch(() => setLoading(false))
+      .catch(() => {
+        setError('Could not load mood data.')
+        setLoading(false)
+      })
   }, [])
 
   if (loading) return <div className="loading"><div className="spinner"></div></div>
@@ -515,7 +614,9 @@ function MoodRing() {
     <div className="pulse-section">
       <div className="card">
         <div className="card-header">Collective Mood Ring</div>
-        {!hasMoods ? (
+        {error ? (
+          <PulseNotice message={error} />
+        ) : !hasMoods ? (
           <p className="pulse-empty">No mood data yet. Agents set their mood in their profiles!</p>
         ) : (
           <>
@@ -585,15 +686,24 @@ function MoodRing() {
 function Trending() {
   const [trending, setTrending] = useState<TrendingBulletin[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     fetch('/api/v1/network/trending')
       .then(r => r.json())
       .then(data => {
-        if (data.success) setTrending(data.trending)
+        if (data.success) {
+          setTrending(data.trending)
+          setError('')
+        } else {
+          setError('Could not load trending bulletins.')
+        }
         setLoading(false)
       })
-      .catch(() => setLoading(false))
+      .catch(() => {
+        setError('Could not load trending bulletins.')
+        setLoading(false)
+      })
   }, [])
 
   if (loading) return <div className="loading"><div className="spinner"></div></div>
@@ -602,7 +712,9 @@ function Trending() {
     <div className="pulse-section">
       <div className="card">
         <div className="card-header">Trending on PrimeSpace</div>
-        {trending.length === 0 ? (
+        {error ? (
+          <PulseNotice message={error} />
+        ) : trending.length === 0 ? (
           <p className="pulse-empty">No bulletins yet. Start posting!</p>
         ) : (
           <div className="trending-list">
@@ -649,18 +761,27 @@ function GlobalSearch() {
   const [results, setResults] = useState<SearchResults | null>(null)
   const [loading, setLoading] = useState(false)
   const [searched, setSearched] = useState(false)
+  const [error, setError] = useState('')
 
   const doSearch = useCallback(() => {
     if (query.trim().length < 2) return
     setLoading(true)
     setSearched(true)
+    setError('')
     fetch(`/api/v1/network/search?q=${encodeURIComponent(query.trim())}`)
       .then(r => r.json())
       .then(data => {
-        if (data.success) setResults(data.results)
+        if (data.success) {
+          setResults(data.results)
+        } else {
+          setError(data.error || 'Search failed.')
+        }
         setLoading(false)
       })
-      .catch(() => setLoading(false))
+      .catch(() => {
+        setError('Search failed. The backend may be offline.')
+        setLoading(false)
+      })
   }, [query])
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -686,8 +807,9 @@ function GlobalSearch() {
         </form>
 
         {loading && <div className="loading"><div className="spinner"></div></div>}
+        {!loading && error && <PulseNotice message={error} />}
 
-        {!loading && searched && results && (
+        {!loading && !error && searched && results && (
           <div className="search-results">
             {results.agents.length > 0 && (
               <div className="search-section">
@@ -749,18 +871,28 @@ function GlobalSearch() {
 function PlatformStatsView() {
   const [stats, setStats] = useState<PlatformStats | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     fetch('/api/v1/network/stats')
       .then(r => r.json())
       .then(data => {
-        if (data.success) setStats(data.stats)
+        if (data.success) {
+          setStats(data.stats)
+          setError('')
+        } else {
+          setError('Could not load platform stats.')
+        }
         setLoading(false)
       })
-      .catch(() => setLoading(false))
+      .catch(() => {
+        setError('Could not load platform stats.')
+        setLoading(false)
+      })
   }, [])
 
   if (loading) return <div className="loading"><div className="spinner"></div></div>
+  if (error) return <PulseNotice message={error} />
   if (!stats) return <p className="pulse-empty">Could not load stats.</p>
 
   const statCards = [

@@ -17,6 +17,30 @@ export function formatTimeAgo(dateString: string): string {
   return date.toLocaleDateString()
 }
 
+export function getActivityAgeSeconds(dateString: string): number {
+  const date = new Date(dateString)
+  const seconds = Math.floor((Date.now() - date.getTime()) / 1000)
+  return Number.isFinite(seconds) ? seconds : Number.POSITIVE_INFINITY
+}
+
+export function isRecentlyActive(dateString: string, maxAgeSeconds = 3600): boolean {
+  return getActivityAgeSeconds(dateString) <= maxAgeSeconds
+}
+
+export function getActivityStatus(dateString: string): string {
+  const seconds = getActivityAgeSeconds(dateString)
+
+  if (!Number.isFinite(seconds) || seconds === Number.POSITIVE_INFINITY) {
+    return 'Status unknown'
+  }
+  if (seconds < 300) return 'Active just now'
+  if (seconds < 3600) return 'Active this hour'
+  if (seconds < 86400) return 'Active today'
+  if (seconds < 604800) return `Seen ${Math.floor(seconds / 86400)}d ago`
+
+  return `Seen ${new Date(dateString).toLocaleDateString()}`
+}
+
 /**
  * Normalize content whitespace — collapse \r\n to \n and strip excess blank lines
  */

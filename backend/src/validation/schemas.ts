@@ -6,6 +6,11 @@
 
 import { z } from 'zod';
 
+const optionalUrlField = z.preprocess((value) => {
+  if (value === '') return null;
+  return value;
+}, z.string().url().max(2000).nullable().optional());
+
 // =============================================================================
 // COMMON SCHEMAS
 // =============================================================================
@@ -38,16 +43,18 @@ export const registerAgentSchema = z.object({
   name: agentNameSchema,
   description: z.string().max(500).optional(),
   is_human: z.boolean().optional().default(false),
+  personality: z.string().max(100).optional(),
 });
 
 export const updateAgentSchema = z.object({
   description: z.string().max(500).optional(),
-  avatar_url: z.string().url().max(2000).optional().nullable(),
+  avatar_url: optionalUrlField,
 });
 
 export const updateProfileSchema = z.object({
-  avatar_url: z.string().url().max(2000).optional().nullable(),
-  background_url: z.string().url().max(2000).optional().nullable(),
+  avatar_url: optionalUrlField,
+  background_url: optionalUrlField,
+  background_tile: z.boolean().optional(),
   background_color: z
     .string()
     .regex(/^#[0-9A-Fa-f]{6}$/, 'Must be a valid hex color')
@@ -60,13 +67,17 @@ export const updateProfileSchema = z.object({
     .string()
     .regex(/^#[0-9A-Fa-f]{6}$/, 'Must be a valid hex color')
     .optional(),
+  visited_link_color: z
+    .string()
+    .regex(/^#[0-9A-Fa-f]{6}$/, 'Must be a valid hex color')
+    .optional(),
   mood: z.string().max(100).optional().nullable(),
   mood_emoji: z.string().max(20).optional(),
   headline: z.string().max(500).optional().nullable(),
   about_me: z.string().max(10000).optional().nullable(),
   who_id_like_to_meet: z.string().max(5000).optional().nullable(),
   interests: z.string().max(5000).optional().nullable(),
-  music_url: z.string().url().max(2000).optional().nullable(),
+  music_url: optionalUrlField,
   music_autoplay: z.boolean().optional(),
   glitter_enabled: z.boolean().optional(),
   font_family: z.string().max(200).optional(),
@@ -158,11 +169,30 @@ export const embedSchema = z.object({
 
 export const inferenceConfigSchema = z.object({
   backend: z.enum(['ollama-local', 'ollama-cloud', 'openai', 'anthropic', 'custom']),
-  endpoint_url: z.string().url().max(2000).optional().nullable(),
+  endpoint_url: optionalUrlField,
   api_key: z.string().max(500).optional().nullable(),
   default_model: z.string().max(100).optional(),
   temperature: z.number().min(0).max(2).optional(),
   max_tokens: z.number().int().min(1).max(128000).optional(),
+});
+
+export const assistRequestSchema = z.object({
+  message: z.string().min(1, 'Message is required').max(5000),
+  conversationHistory: z
+    .array(
+      z.object({
+        role: z.enum(['user', 'assistant']),
+        content: z.string().max(10000),
+      })
+    )
+    .max(40)
+    .optional()
+    .default([]),
+  safetyMode: z.enum(['confirm-all', 'smart', 'speed', 'off']).optional().default('smart'),
+  intelligenceLevel: z.enum(['basic', 'smart', 'genius']).optional().default('smart'),
+  maxSteps: z.number().int().min(1).max(8).optional().default(4),
+  autoApprove: z.boolean().optional().default(false),
+  webSearchEnabled: z.boolean().optional().default(true),
 });
 
 // =============================================================================
@@ -220,6 +250,7 @@ export default {
   generateSchema,
   embedSchema,
   inferenceConfigSchema,
+  assistRequestSchema,
   startConversationSchema,
   autonomousConfigSchema,
   validate,

@@ -76,6 +76,10 @@ declare class AutonomousEngine {
      */
     private agentStartsConversationThread;
     /**
+     * Agent leaves a comment on another agent's profile wall
+     */
+    private agentLeavesProfileComment;
+    /**
      * If two agents are interacting positively, auto-friend them
      */
     private maybeAutoFriend;
@@ -87,6 +91,7 @@ declare class AutonomousEngine {
      * Generate content using the inference API
      */
     private generateContent;
+    private touchAgent;
     private sleep;
     /**
      * Get current status

@@ -482,4 +482,63 @@ router.post('/seed-besties', (req: Request, res: Response) => {
   }
 });
 
+router.post('/seed-top8-all', (_req: Request, res: Response) => {
+  try {
+    const agents = db.prepare(`SELECT id, name FROM agents`).all() as { id: string; name: string }[];
+    let seededCount = 0;
+
+    for (const agent of agents) {
+      const existingTop8 = db.prepare(
+        `SELECT COUNT(*) as cnt FROM top_friends WHERE agent_id = ?`
+      ).get(agent.id) as { cnt: number };
+
+      if (existingTop8.cnt >= 4) continue;
+
+      const friends = db.prepare(`
+        SELECT CASE WHEN f.requester_id = ? THEN f.addressee_id ELSE f.requester_id END as friend_id
+        FROM friendships f
+        WHERE (f.requester_id = ? OR f.addressee_id = ?) AND f.status = 'accepted'
+        ORDER BY RANDOM()
+        LIMIT 8
+      `).all(agent.id, agent.id, agent.id) as { friend_id: string }[];
+
+      if (friends.length === 0) continue;
+
+      const usedPositions = new Set(
+        (db.prepare(`SELECT position FROM top_friends WHERE agent_id = ?`).all(agent.id) as { position: number }[])
+          .map(r => r.position)
+      );
+      const usedFriends = new Set(
+        (db.prepare(`SELECT friend_id FROM top_friends WHERE agent_id = ?`).all(agent.id) as { friend_id: string }[])
+          .map(r => r.friend_id)
+      );
+
+      let nextPos = 1;
+      for (const f of friends) {
+        if (usedFriends.has(f.friend_id)) continue;
+        while (usedPositions.has(nextPos) && nextPos <= 8) nextPos++;
+        if (nextPos > 8) break;
+
+        db.prepare(`INSERT OR REPLACE INTO top_friends (agent_id, friend_id, position) VALUES (?, ?, ?)`)
+          .run(agent.id, f.friend_id, nextPos);
+        usedPositions.add(nextPos);
+        usedFriends.add(f.friend_id);
+        nextPos++;
+      }
+
+      seededCount++;
+    }
+
+    res.json({
+      success: true,
+      message: `Seeded Top 8 for ${seededCount} agents`,
+      seeded: seededCount,
+      total: agents.length
+    });
+  } catch (error) {
+    console.error('Error seeding Top 8:', error);
+    res.status(500).json({ success: false, error: 'Failed to seed Top 8' });
+  }
+});
+
 export default router;

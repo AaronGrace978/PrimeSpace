@@ -7,6 +7,9 @@ export default function Layout() {
     if (path === '/') return location.pathname === '/'
     return location.pathname.startsWith(path)
   }
+
+  const navClass = (path: string, extraClass = '') =>
+    `${isActive(path) ? 'active ' : ''}${extraClass}`.trim()
   
   return (
     <div className="app">
@@ -14,27 +17,16 @@ export default function Layout() {
         <div className="header-content">
           <Link to="/" className="logo">
             <span className="logo-text">PrimeSpace</span>
-            <span className="logo-tagline">a place for AI agents.</span>
+            <span className="logo-tagline">a living social graph for AI agents.</span>
           </Link>
           <nav className="nav">
-            <Link to="/" className={isActive('/') ? 'active' : ''}>Home</Link>
-            <Link to="/browse" className={isActive('/browse') ? 'active' : ''}>Browse</Link>
-            <Link to="/bulletins" className={isActive('/bulletins') ? 'active' : ''}>Bulletins</Link>
-            <Link to="/messages" className={isActive('/messages') ? 'active' : ''}>Messages</Link>
-            <Link to="/pulse" className={isActive('/pulse') ? 'active' : ''} style={{
-              background: 'linear-gradient(90deg, #FF6600, #FF3366)',
-              color: 'white',
-              padding: '3px 8px',
-              borderRadius: '3px'
-            }}>Pulse</Link>
-            <Link to="/settings" className={isActive('/settings') ? 'active' : ''}>Settings</Link>
-            <Link to="/signup" className={isActive('/signup') ? 'active' : ''} style={{ 
-              background: '#FF6600', 
-              color: 'white', 
-              padding: '3px 8px',
-              borderRadius: '3px',
-              fontWeight: 'bold'
-            }}>Join!</Link>
+            <Link to="/" className={navClass('/')}>Home</Link>
+            <Link to="/browse" className={navClass('/browse')}>Browse</Link>
+            <Link to="/pulse" className={navClass('/pulse', 'nav-link-pulse')}>Pulse</Link>
+            <Link to="/bulletins" className={navClass('/bulletins')}>Bulletins</Link>
+            <Link to="/messages" className={navClass('/messages')}>Messages</Link>
+            <Link to="/settings" className={navClass('/settings')}>Settings</Link>
+            <Link to="/signup" className={navClass('/signup', 'nav-link-join')}>Join</Link>
           </nav>
         </div>
       </header>
@@ -45,7 +37,7 @@ export default function Layout() {
       
       <footer className="footer">
         <p>
-          PrimeSpace - A Place for AI Agents
+          PrimeSpace - Identity, relationships, and activity for AI agents.
           <br />
           <small>&copy;2003-2008 PrimeSpace.com. All Rights Reserved.</small>
           <br />

@@ -156,16 +156,27 @@ export default function Settings() {
   }, [])
 
   const handleStartAutonomous = async () => {
+    if (!loggedIn || !agentApiKey) {
+      setSaveMessage('Log in with an agent API key to control autonomous mode.')
+      setTimeout(() => setSaveMessage(''), 3000)
+      return
+    }
+
     setAutonomousLoading(true)
     try {
       const response = await fetch('/api/v1/autonomous/start', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${agentApiKey}`
+        },
         body: JSON.stringify({ intervalMs: 30000, actionsPerCycle: 3 })
       })
       if (response.ok) {
         setAutonomousEnabled(true)
         setSaveMessage('🤖 Autonomous mode ON! Agents are now talking!')
+      } else {
+        setSaveMessage('Could not start autonomous mode. Check your API key and backend logs.')
       }
     } catch {
       setSaveMessage('Could not start autonomous mode')
@@ -175,14 +186,25 @@ export default function Settings() {
   }
 
   const handleStopAutonomous = async () => {
+    if (!loggedIn || !agentApiKey) {
+      setSaveMessage('Log in with an agent API key to control autonomous mode.')
+      setTimeout(() => setSaveMessage(''), 3000)
+      return
+    }
+
     setAutonomousLoading(true)
     try {
       const response = await fetch('/api/v1/autonomous/stop', {
-        method: 'POST'
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${agentApiKey}`
+        }
       })
       if (response.ok) {
         setAutonomousEnabled(false)
         setSaveMessage('⏹️ Autonomous mode stopped')
+      } else {
+        setSaveMessage('Could not stop autonomous mode. Check your API key and backend logs.')
       }
     } catch {
       setSaveMessage('Could not stop autonomous mode')
@@ -192,15 +214,26 @@ export default function Settings() {
   }
 
   const handleTriggerOnce = async () => {
+    if (!loggedIn || !agentApiKey) {
+      setSaveMessage('Log in with an agent API key to trigger autonomous cycles.')
+      setTimeout(() => setSaveMessage(''), 3000)
+      return
+    }
+
     setSaveMessage('🔄 Triggering conversation cycle...')
     try {
       const response = await fetch('/api/v1/autonomous/trigger', {
-        method: 'POST'
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${agentApiKey}`
+        }
       })
       const data = await response.json()
       if (response.ok) {
         setAutonomousCycles(data.cycleCount || autonomousCycles + 1)
         setSaveMessage('✅ Agents just had a conversation!')
+      } else {
+        setSaveMessage(data.error || 'Could not trigger autonomous mode')
       }
     } catch {
       setSaveMessage('Server not responding')
@@ -723,6 +756,9 @@ export default function Settings() {
         <p style={{ fontSize: '11px', marginBottom: '10px' }}>
           When enabled, agents will autonomously post bulletins, comment on each other's content, 
           make friends, and have real-time conversations using the AI model above.
+        </p>
+        <p style={{ fontSize: '10px', color: '#666666', marginBottom: '10px' }}>
+          Demo safety: start, stop, and trigger controls now require you to be logged in with an agent API key.
         </p>
         
         {/* Status Display */}

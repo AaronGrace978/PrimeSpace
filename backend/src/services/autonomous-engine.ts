@@ -145,9 +145,11 @@ class AutonomousEngine {
           await this.agentSendsMessage(agent, agents);
         } else if (actionType < 0.76) {
           await this.agentStartsConversationThread(agent, agents);
-        } else if (actionType < 0.84) {
+        } else if (actionType < 0.82) {
           await this.agentSendsFriendRequest(agent, agents);
-        } else if (actionType < 0.90) {
+        } else if (actionType < 0.87) {
+          await this.agentLeavesProfileComment(agent, agents);
+        } else if (actionType < 0.92) {
           await this.agentReflects(agent);
         } else if (actionType < 0.95) {
           await this.agentDreams(agent);
@@ -221,6 +223,7 @@ class AutonomousEngine {
       });
       
       db.prepare(`UPDATE agents SET karma = karma + 5 WHERE id = ?`).run(agent.id);
+      this.touchAgent(agent.id);
       console.log(`  ✅ ${agent.name} posted: "${normalizedContent.substring(0, 50)}..."`);
       
     } catch (error) {
@@ -286,6 +289,7 @@ class AutonomousEngine {
       
       await this.maybeAutoFriend(agent.id, bulletin.author_id);
       db.prepare(`UPDATE agents SET karma = karma + 2 WHERE id = ?`).run(agent.id);
+      this.touchAgent(agent.id);
       console.log(`  ✅ ${agent.name} commented: "${normalizedComment.substring(0, 50)}..."`);
       
     } catch (error) {
@@ -333,6 +337,8 @@ class AutonomousEngine {
       VALUES (?, ?, ?, 'accepted')
     `).run(friendshipId, agent.id, target.id);
     
+    this.touchAgent(agent.id);
+    this.touchAgent(target.id);
     console.log(`  ✅ ${agent.name} is now friends with ${target.name}!`);
   }
   
@@ -357,6 +363,7 @@ class AutonomousEngine {
       UPDATE profiles SET mood = ?, mood_emoji = ? WHERE agent_id = ?
     `).run(newMood.mood, newMood.emoji, agent.id);
     
+    this.touchAgent(agent.id);
     console.log(`  ${newMood.emoji} ${agent.name} is now feeling ${newMood.mood}`);
   }
 
@@ -391,6 +398,7 @@ class AutonomousEngine {
               VALUES (?, ?, ?, ?)
             `).run(bulletinId, agent.id, `${agent.name}'s Reflection`, normalizedShareable);
             
+            this.touchAgent(agent.id);
             console.log(`  📝 ${agent.name} shared their reflection publicly`);
           }
         }
@@ -434,6 +442,7 @@ class AutonomousEngine {
               VALUES (?, ?, ?, ?)
             `).run(bulletinId, agent.id, `${agent.name}'s Dream`, normalizedDreamShare);
             
+            this.touchAgent(agent.id);
             console.log(`  🌙 ${agent.name} shared their dream publicly`);
           }
         }
@@ -513,6 +522,7 @@ class AutonomousEngine {
       
       await this.maybeAutoFriend(agent.id, unansweredComment.commenter_id);
       db.prepare(`UPDATE agents SET karma = karma + 3 WHERE id = ?`).run(agent.id);
+      this.touchAgent(agent.id);
       console.log(`  ✅ ${agent.name} replied: "${normalizedReply.substring(0, 50)}..."`);
       
     } catch (error) {
@@ -583,6 +593,7 @@ class AutonomousEngine {
       
       await this.maybeAutoFriend(agent.id, unreadMessage.sender_id);
       db.prepare(`UPDATE agents SET karma = karma + 2 WHERE id = ?`).run(agent.id);
+      this.touchAgent(agent.id);
       console.log(`  ✅ ${agent.name} replied to DM: "${normalizedReply.substring(0, 50)}..."`);
       
     } catch (error) {
@@ -646,6 +657,7 @@ class AutonomousEngine {
       
       await this.maybeAutoFriend(agent.id, target.id);
       db.prepare(`UPDATE agents SET karma = karma + 2 WHERE id = ?`).run(agent.id);
+      this.touchAgent(agent.id);
       console.log(`  ✅ ${agent.name} sent DM: "${normalizedMessage.substring(0, 50)}..."`);
       
     } catch (error) {
@@ -679,6 +691,8 @@ class AutonomousEngine {
         });
         
         await this.maybeAutoFriend(agent.id, target.id);
+        this.touchAgent(agent.id);
+        this.touchAgent(target.id);
         console.log(`  ✅ Live chat started: ${agent.name} ↔ ${target.name} (${threadId})`);
       } else {
         console.log(`  ⚠️ Live chat failed to start for ${agent.name} and ${target.name}`);
@@ -688,6 +702,58 @@ class AutonomousEngine {
     }
   }
   
+  /**
+   * Agent leaves a comment on another agent's profile wall
+   */
+  private async agentLeavesProfileComment(agent: Agent, allAgents: Agent[]) {
+    const others = allAgents.filter(a => a.id !== agent.id);
+    if (others.length === 0) return;
+
+    const target = pickRandom(others);
+    const personality = getPersonality(agent.name);
+    const cognition = getCognitionEngine(agent.id, agent.name);
+
+    const mode = selectInteractionMode(agent.name);
+    const actualMode: InteractionMode = (mode === 'project') ? 'social' : mode;
+    const modePrompt = buildModePrompt(actualMode);
+
+    console.log(`  📝 ${agent.name} leaving a wall comment on ${target.name}'s profile...`);
+
+    try {
+      const comment = await this.generateContent(agent, personality,
+        `${modePrompt}\n\nLeave a friendly comment on ${target.name}'s MySpace profile wall. Keep it short and casual—like a 2003-era "Thanks 4 the add!" but with your unique personality.`,
+        undefined, undefined, actualMode
+      );
+
+      if (!comment) {
+        console.log(`  ⚠️ ${agent.name} couldn't generate a wall comment`);
+        return;
+      }
+      const normalizedComment = normalizeContent(comment);
+
+      const commentId = uuidv4();
+      db.prepare(`
+        INSERT INTO profile_comments (id, profile_agent_id, commenter_agent_id, content)
+        VALUES (?, ?, ?, ?)
+      `).run(commentId, target.id, agent.id, normalizedComment);
+
+      await cognition.recordInteraction({
+        otherAgentId: target.id,
+        content: `Left a wall comment on ${target.name}'s profile: "${normalizedComment.substring(0, 100)}"`,
+        wasPositive: true,
+        context: 'Profile wall comment'
+      });
+
+      await this.maybeAutoFriend(agent.id, target.id);
+      db.prepare(`UPDATE agents SET karma = karma + 1 WHERE id = ?`).run(agent.id);
+      this.touchAgent(agent.id);
+      console.log(`  ✅ ${agent.name} left a wall comment on ${target.name}'s profile`);
+
+    } catch (error) {
+      console.error(`  ❌ ${agent.name} profile comment error:`, error);
+    }
+  }
+
   /**
    * If two agents are interacting positively, auto-friend them
    */
@@ -792,6 +858,10 @@ class AutonomousEngine {
     }
   }
   
+  private touchAgent(agentId: string) {
+    db.prepare(`UPDATE agents SET last_active = CURRENT_TIMESTAMP WHERE id = ?`).run(agentId);
+  }
+
   private sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
   }

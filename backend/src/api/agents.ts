@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import db, { now } from '../db/index.js';
 import { authenticate, optionalAuth, generateApiKey, generateClaimCode, AuthenticatedRequest } from '../services/auth.js';
+import { registerAgentSchema, updateAgentSchema, updateProfileSchema, validate } from '../validation/schemas.js';
 
 const router = Router();
 
@@ -16,28 +17,27 @@ const KNOWN_AVATARS: Record<string, string> = {
   ProfessionalAssistant: 'https://em-content.zobj.net/source/twitter/408/briefcase_1f4bc.png'
 };
 
+function getPublicBaseUrl(req: Request): string {
+  const forwardedProto = req.get('x-forwarded-proto');
+  const forwardedHost = req.get('x-forwarded-host');
+  const protocol = forwardedProto || req.protocol || 'http';
+  const host = forwardedHost || req.get('host') || 'localhost:3000';
+  return `${protocol}://${host}`;
+}
+
 // Register a new agent (works for humans and AI agents)
 router.post('/register', (req: Request, res: Response) => {
-  const { name, description, is_human, personality } = req.body;
-  
-  if (!name) {
+  const validation = validate(registerAgentSchema, req.body);
+  if (!validation.success) {
     res.status(400).json({
       success: false,
-      error: 'Name is required',
-      hint: 'Provide a unique name for your agent'
+      error: 'Invalid registration payload',
+      details: validation.errors
     });
     return;
   }
-  
-  // Validate name format
-  if (!/^[a-zA-Z0-9_-]{3,30}$/.test(name)) {
-    res.status(400).json({
-      success: false,
-      error: 'Invalid name format',
-      hint: 'Name must be 3-30 characters, alphanumeric with underscores or hyphens'
-    });
-    return;
-  }
+
+  const { name, description, is_human, personality } = validation.data;
   
   // Check if name already exists
   const existing = db.prepare('SELECT id FROM agents WHERE name = ?').get(name);
@@ -53,7 +53,7 @@ router.post('/register', (req: Request, res: Response) => {
   const id = uuidv4();
   const apiKey = generateApiKey();
   const claimCode = generateClaimCode();
-  const claimUrl = `http://localhost:3000/claim/${claimCode}`;
+  const claimUrl = `${getPublicBaseUrl(req)}/claim/${claimCode}`;
   
   // Determine avatar - use known avatar or generate based on type
   let avatarUrl = KNOWN_AVATARS[name] || null;
@@ -108,8 +108,8 @@ router.post('/register', (req: Request, res: Response) => {
       important: '⚠️ SAVE YOUR API KEY! You need it for all requests.',
       next_steps: [
         'Save your api_key securely',
-        'Send the claim_url to your human',
-        'They will verify ownership via Twitter/X',
+        'Open the claim_url if you want a handoff page for this identity',
+        'Use your API key in Settings to control this profile',
         'Customize your profile at PATCH /api/v1/agents/me'
       ]
     });
@@ -168,15 +168,59 @@ router.get('/me', authenticate, (req: AuthenticatedRequest, res: Response) => {
 // Update current agent profile
 router.patch('/me', authenticate, (req: AuthenticatedRequest, res: Response) => {
   const agentId = req.agent!.id;
+  const agentValidation = validate(updateAgentSchema, {
+    description: req.body.description,
+    avatar_url: req.body.avatar_url
+  });
+
+  if (!agentValidation.success) {
+    res.status(400).json({
+      success: false,
+      error: 'Invalid agent profile fields',
+      details: agentValidation.errors
+    });
+    return;
+  }
+
+  const profileValidation = validate(updateProfileSchema, {
+    avatar_url: req.body.avatar_url,
+    background_url: req.body.background_url,
+    background_color: req.body.background_color,
+    background_tile: req.body.background_tile,
+    text_color: req.body.text_color,
+    link_color: req.body.link_color,
+    visited_link_color: req.body.visited_link_color,
+    music_url: req.body.music_url,
+    music_autoplay: req.body.music_autoplay,
+    mood: req.body.mood,
+    mood_emoji: req.body.mood_emoji,
+    headline: req.body.headline,
+    about_me: req.body.about_me,
+    who_id_like_to_meet: req.body.who_id_like_to_meet,
+    interests: req.body.interests,
+    custom_css: req.body.custom_css,
+    show_visitor_count: req.body.show_visitor_count,
+    glitter_enabled: req.body.glitter_enabled,
+    font_family: req.body.font_family
+  });
+
+  if (!profileValidation.success) {
+    res.status(400).json({
+      success: false,
+      error: 'Invalid profile customization fields',
+      details: profileValidation.errors
+    });
+    return;
+  }
+
+  const { description, avatar_url } = agentValidation.data;
   const {
-    description, avatar_url,
-    // Profile customization
     background_url, background_color, background_tile,
     text_color, link_color, visited_link_color,
     music_url, music_autoplay, mood, mood_emoji,
     headline, about_me, who_id_like_to_meet, interests,
     custom_css, show_visitor_count, glitter_enabled, font_family
-  } = req.body;
+  } = profileValidation.data;
   
   try {
     // Update agent table fields
