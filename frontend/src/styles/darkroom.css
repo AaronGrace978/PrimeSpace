@@ -1362,6 +1362,34 @@ button.action-btn.inject-btn:disabled {
   border-radius: 4px;
 }
 
+/* ═══ Exit link — escape hatch back to PrimeSpace ═══ */
+.dr-exit-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--dr-font-mono);
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: var(--dr-text-secondary);
+  text-decoration: none;
+  padding: 4px 10px;
+  margin-bottom: 8px;
+  border: 1px solid var(--dr-border);
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.5);
+  transition: all 0.15s ease;
+  width: fit-content;
+}
+.dr-exit-link:hover {
+  color: #e0e0e0;
+  border-color: var(--dr-accent-cyan);
+  box-shadow: 0 0 10px rgba(68, 153, 153, 0.3);
+}
+.dr-exit-link .dr-exit-arrow {
+  font-size: 13px;
+  color: var(--dr-accent-cyan);
+}
+
 /* ═══ Heat Meter (live chamber temperature) ═══ */
 .dr-heat-meter {
   display: flex;

@@ -873,20 +873,63 @@ You're speaking next. You are addressing ${targetName}. React to what was just s
   /**
    * Manually add a message to the dark room (for human injection)
    */
+  /**
+   * Inject a human (or spoken-as-agent) message into the chamber.
+   * Drives an IMMEDIATE response from one of the participants so the injection
+   * actually provokes a reply instead of disappearing into the timeline.
+   *
+   * If `speakerName` matches an active participant, we treat it as that agent
+   * having just spoken (and set them as `lastSpeakerId` so the rotation picks
+   * someone ELSE to reply). Otherwise it's treated as a human observer prompt.
+   */
   injectMessage(speakerName: string, content: string): void {
     if (!this.activeSession) {
       console.log('[DARK ROOM] No active session');
       return;
     }
-    
-    this.logTranscript(this.activeSession.id, {
-      speakerId: 'HUMAN',
-      speakerName: `[INJECTED] ${speakerName}`,
+
+    const sessionId = this.activeSession.id;
+
+    // Is the speaker actually a participant in this session? (speak-as feature)
+    const participants = db.prepare(`
+      SELECT id, name FROM agents WHERE id IN (${this.activeSession.participant_ids.map(() => '?').join(', ')})
+    `).all(...this.activeSession.participant_ids) as Array<{ id: string; name: string }>;
+
+    const asParticipant = participants.find(p => p.name === speakerName);
+
+    // Log the transcript. When speaking AS a participant, write it as that participant
+    // directly so it shows up in the feed with their color and flows naturally.
+    this.logTranscript(sessionId, {
+      speakerId: asParticipant ? asParticipant.id : 'HUMAN',
+      speakerName: asParticipant ? asParticipant.name : `[INJECTED] ${speakerName}`,
       content,
-      contentType: 'message'
+      contentType: 'message',
+      metadata: { injected: true, injected_as: speakerName }
     });
-    
-    console.log(`[DARK ROOM] 💉 Injected: ${speakerName}: ${content}`);
+
+    // Bump the active session's message count so UI reflects it
+    this.activeSession.message_count++;
+    db.prepare(`UPDATE dark_room_sessions SET message_count = message_count + 1 WHERE id = ?`)
+      .run(sessionId);
+
+    // Update rotation state so the next exchange responds naturally:
+    //  - If spoken AS a participant: they just spoke → next speaker picks someone else.
+    //  - Otherwise: clear rotation so any participant can reply, and point lastAddressedId
+    //    at a random participant so someone is nudged to react to the human.
+    if (asParticipant) {
+      this.lastSpeakerId = asParticipant.id;
+      this.lastAddressedId = null;
+    } else if (participants.length > 0) {
+      this.lastSpeakerId = null;
+      this.lastAddressedId = participants[Math.floor(Math.random() * participants.length)].id;
+    }
+
+    console.log(`[DARK ROOM] 💉 Injected ${asParticipant ? `as ${asParticipant.name}` : `from ${speakerName}`}: ${content.substring(0, 80)}`);
+
+    // Fire an immediate reply exchange. Fire-and-forget; errors are already logged
+    // inside runExchange. This works whether autonomous chat is running or paused —
+    // an injection always produces a reply.
+    this.runExchange().catch(err => console.error('[DARK ROOM] Injection follow-up failed:', err));
   }
   
   /**

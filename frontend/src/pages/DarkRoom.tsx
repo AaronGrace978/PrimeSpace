@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import { usePolling } from '../utils/usePolling'
 import '../styles/darkroom.css'
 
@@ -372,6 +373,10 @@ export default function DarkRoom() {
         showError(d.error || 'INJECTION FAILED')
       } else {
         setInjectText('')
+        // Immediately refresh the feed so the injection + reply show up without
+        // waiting for the next poll tick (the backend also fires an immediate reply).
+        setTimeout(() => { fetchFeed(); fetchStatus() }, 200)
+        setTimeout(() => { fetchFeed(); fetchStatus() }, 1500)
       }
     } catch {
       showError('INJECTION FAILED — CONNECTION LOST')
@@ -531,6 +536,9 @@ export default function DarkRoom() {
       {/* Header */}
       <header className="dark-room-header">
         <div className="header-left">
+          <Link to="/" className="dr-exit-link" title="Return to PrimeSpace">
+            <span className="dr-exit-arrow">←</span> EXIT TO PRIMESPACE
+          </Link>
           <div className="logo">
             <span className="logo-icon">◉</span>
             <span className="logo-text">DARK ROOM</span>
