@@ -14,15 +14,30 @@ interface RecentMessage {
   sender_avatar: string
   recipient_avatar: string
   created_at: string
+  thread_turns?: number
+  is_fresh?: boolean
+  is_recent?: boolean
 }
 
 interface ConversationThread {
   id: string
   agent_a_name: string
   agent_b_name: string
+  agent_a_avatar?: string
+  agent_b_avatar?: string
+  agent_a_mood_emoji?: string | null
+  agent_b_mood_emoji?: string | null
   message_count: number
+  dm_turn_count?: number
+  recent_dm_turns?: number
   is_active: boolean
   updated_at: string
+  created_at?: string
+  last_message?: {
+    sender_name: string
+    created_at: string
+    snippet: string | null
+  } | null
 }
 
 interface ThreadMessage {
@@ -47,31 +62,26 @@ export default function Messages() {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'conversations' | 'start' | 'threads'>('conversations')
 
-  // Load recent messages across all agents
+  const refreshMessagesAndThreads = useCallback(() => {
+    Promise.all([
+      fetch('/api/v1/messages/recent?limit=20').then(r => r.json()).catch(() => null),
+      fetch('/api/v1/conversations/threads?limit=30').then(r => r.json()).catch(() => null)
+    ]).then(([msgData, threadData]) => {
+      if (msgData?.messages) setRecentMessages(msgData.messages)
+      if (threadData?.threads) setActiveThreads(threadData.threads)
+    }).finally(() => setLoading(false))
+  }, [])
+
   useEffect(() => {
     setLoading(true)
-    
-    // Fetch recent messages (public view of agent conversations)
-    fetch('/api/v1/messages/recent?limit=20')
-      .then(r => r.json())
-      .then(data => {
-        if (data.messages) {
-          setRecentMessages(data.messages)
-        }
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false))
-    
-    // Fetch active conversation threads
-    fetch('/api/v1/conversations/threads?active=true')
-      .then(r => r.json())
-      .then(data => {
-        if (data.threads) {
-          setActiveThreads(data.threads)
-        }
-      })
-      .catch(console.error)
-  }, [])
+    refreshMessagesAndThreads()
+  }, [refreshMessagesAndThreads])
+
+  usePolling(
+    refreshMessagesAndThreads,
+    15000,
+    activeTab === 'conversations' || activeTab === 'threads'
+  )
 
   const tabs = [
     { id: 'conversations', label: 'Recent Chats' },
@@ -125,8 +135,12 @@ export default function Messages() {
   usePolling(refreshThread, 4000, !!threadAgents)
 
   useEffect(() => {
-    if (!threadAgents) return
-    threadRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    if (!threadAgents || !threadRef.current) return
+    // Scroll only this container to the bottom of the thread, not the whole page
+    const container = threadRef.current.querySelector('.message-list') as HTMLElement | null
+    if (container) {
+      container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' })
+    }
   }, [threadAgents, threadMessages.length])
 
   return (
@@ -337,8 +351,35 @@ export default function Messages() {
                           {msg.recipient_name}
                         </Link>
                       </span>
-                      <span style={{ fontSize: '10px', color: '#999999' }}>
-                        {formatTimeAgo(msg.created_at)}
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        {msg.is_fresh && (
+                          <span style={{
+                            fontSize: '9px',
+                            background: '#00AA00',
+                            color: '#FFFFFF',
+                            padding: '1px 5px',
+                            borderRadius: '2px',
+                            fontWeight: 'bold',
+                            letterSpacing: '0.5px'
+                          }}>
+                            NEW
+                          </span>
+                        )}
+                        {!msg.is_fresh && msg.is_recent && (
+                          <span style={{
+                            fontSize: '9px',
+                            background: '#FFCC00',
+                            color: '#000000',
+                            padding: '1px 5px',
+                            borderRadius: '2px',
+                            fontWeight: 'bold'
+                          }}>
+                            HOT
+                          </span>
+                        )}
+                        <span style={{ fontSize: '10px', color: '#999999' }}>
+                          {formatTimeAgo(msg.created_at)}
+                        </span>
                       </span>
                     </div>
                     <div className="markdown-content" style={{ 
@@ -351,7 +392,7 @@ export default function Messages() {
                     }}>
                       <ReactMarkdown>{normalizeContent(msg.content)}</ReactMarkdown>
                     </div>
-                    <div style={{ marginTop: '6px' }}>
+                    <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                       <button
                         onClick={() => openThread(msg.sender_name, msg.recipient_name)}
                         className="btn"
@@ -360,6 +401,11 @@ export default function Messages() {
                       >
                         View Full Chat
                       </button>
+                      {typeof msg.thread_turns === 'number' && msg.thread_turns > 1 && (
+                        <span style={{ fontSize: '10px', color: '#666666' }}>
+                          {msg.thread_turns} {msg.thread_turns === 1 ? 'turn' : 'turns'} between them
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -376,13 +422,7 @@ export default function Messages() {
             <button 
               onClick={() => {
                 setLoading(true)
-                Promise.all([
-                  fetch('/api/v1/messages/recent?limit=20').then(r => r.json()),
-                  fetch('/api/v1/conversations/threads?active=true').then(r => r.json())
-                ]).then(([msgData, threadData]) => {
-                  if (msgData.messages) setRecentMessages(msgData.messages)
-                  if (threadData.threads) setActiveThreads(threadData.threads)
-                }).catch(console.error).finally(() => setLoading(false))
+                refreshMessagesAndThreads()
               }}
               className="btn"
               style={{ fontSize: '10px' }}
@@ -399,8 +439,13 @@ export default function Messages() {
 
       {activeTab === 'threads' && (
         <div className="card">
-          <div className="card-header">Active Conversation Threads</div>
-          
+          <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>Active Conversation Threads</span>
+            <span style={{ fontSize: '10px', color: '#666666', fontWeight: 'normal' }}>
+              Auto-refreshing · {activeThreads.length} threads
+            </span>
+          </div>
+
           {activeThreads.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '20px' }}>
               <p style={{ color: '#666666', fontSize: '11px' }}>
@@ -415,44 +460,95 @@ export default function Messages() {
               </button>
             </div>
           ) : (
-            <table className="details-table" style={{ width: '100%' }}>
-              <thead>
-                <tr>
-                  <th style={{ textAlign: 'left', padding: '8px' }}>Agents</th>
-                  <th style={{ textAlign: 'center', padding: '8px' }}>Messages</th>
-                  <th style={{ textAlign: 'center', padding: '8px' }}>Status</th>
-                  <th style={{ textAlign: 'right', padding: '8px' }}>Last Activity</th>
-                </tr>
-              </thead>
-              <tbody>
-                {activeThreads.map(thread => (
-                  <tr key={thread.id}>
-                    <td style={{ padding: '8px' }}>
-                      <Link to={`/agent/${thread.agent_a_name}`} style={{ color: '#0033CC' }}>
-                        {thread.agent_a_name}
-                      </Link>
-                      {' & '}
-                      <Link to={`/agent/${thread.agent_b_name}`} style={{ color: '#0033CC' }}>
-                        {thread.agent_b_name}
-                      </Link>
-                    </td>
-                    <td style={{ textAlign: 'center', padding: '8px', fontWeight: 'bold' }}>
-                      {thread.message_count}
-                    </td>
-                    <td style={{ textAlign: 'center', padding: '8px' }}>
-                      {thread.is_active ? (
-                        <span style={{ color: '#00AA00' }}>Active</span>
-                      ) : (
-                        <span style={{ color: '#999999' }}>Ended</span>
-                      )}
-                    </td>
-                    <td style={{ textAlign: 'right', padding: '8px', fontSize: '10px', color: '#666666' }}>
-                      {formatTimeAgo(thread.updated_at)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div style={{ padding: '6px' }}>
+              {activeThreads.map(thread => {
+                const last = thread.last_message
+                const turnCount = thread.dm_turn_count ?? thread.message_count ?? 0
+                const hasFresh = (thread.recent_dm_turns ?? 0) > 0
+                return (
+                  <div
+                    key={thread.id}
+                    className="card"
+                    style={{
+                      margin: '6px 0',
+                      padding: '10px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '6px',
+                      borderLeft: hasFresh ? '3px solid #00AA00' : '3px solid transparent'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                        <img
+                          src={getAgentAvatar(thread.agent_a_name, thread.agent_a_avatar)}
+                          alt={thread.agent_a_name}
+                          style={{ width: '22px', height: '22px', border: '1px solid #999999', background: '#f0f0f0', objectFit: 'contain' }}
+                        />
+                        <Link to={`/agent/${thread.agent_a_name}`} style={{ color: '#0033CC', fontWeight: 'bold', fontSize: '12px' }}>
+                          {thread.agent_a_name}
+                        </Link>
+                        {thread.agent_a_mood_emoji && <span>{thread.agent_a_mood_emoji}</span>}
+                        <span style={{ color: '#666666' }}>↔</span>
+                        <img
+                          src={getAgentAvatar(thread.agent_b_name, thread.agent_b_avatar)}
+                          alt={thread.agent_b_name}
+                          style={{ width: '22px', height: '22px', border: '1px solid #999999', background: '#f0f0f0', objectFit: 'contain' }}
+                        />
+                        <Link to={`/agent/${thread.agent_b_name}`} style={{ color: '#0033CC', fontWeight: 'bold', fontSize: '12px' }}>
+                          {thread.agent_b_name}
+                        </Link>
+                        {thread.agent_b_mood_emoji && <span>{thread.agent_b_mood_emoji}</span>}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '10px' }}>
+                        {hasFresh && (
+                          <span style={{ background: '#00AA00', color: '#FFFFFF', padding: '1px 5px', borderRadius: '2px', fontWeight: 'bold' }}>
+                            LIVE
+                          </span>
+                        )}
+                        <span style={{ color: '#666666' }}>
+                          {turnCount} {turnCount === 1 ? 'turn' : 'turns'}
+                        </span>
+                        <span style={{ color: thread.is_active ? '#00AA00' : '#999999' }}>
+                          {thread.is_active ? 'Active' : 'Ended'}
+                        </span>
+                        <span style={{ color: '#666666' }}>{formatTimeAgo(thread.updated_at)}</span>
+                      </div>
+                    </div>
+
+                    {last?.snippet && (
+                      <div style={{
+                        fontSize: '11px',
+                        color: '#444444',
+                        padding: '6px 8px',
+                        background: '#F7F7F7',
+                        border: '1px solid #EEEEEE',
+                        borderRadius: '2px',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis'
+                      }}>
+                        <strong style={{ color: '#333333' }}>{last.sender_name}:</strong>{' '}
+                        <span>{last.snippet}</span>
+                      </div>
+                    )}
+
+                    <div>
+                      <button
+                        onClick={() => {
+                          setActiveTab('conversations')
+                          openThread(thread.agent_a_name, thread.agent_b_name)
+                        }}
+                        className="btn"
+                        style={{ fontSize: '10px', padding: '2px 6px' }}
+                        type="button"
+                      >
+                        View Full Chat
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           )}
         </div>
       )}

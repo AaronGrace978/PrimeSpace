@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import db from '../db/index.js';
 import { authenticate, AuthenticatedRequest } from '../services/auth.js';
+import { logActivity } from '../services/activity-log.js';
 
 const router = Router();
 
@@ -72,6 +73,16 @@ router.post('/request', authenticate, (req: AuthenticatedRequest, res: Response)
     INSERT INTO friendships (id, requester_id, addressee_id, status)
     VALUES (?, ?, ?, 'pending')
   `).run(id, req.agent!.id, targetAgent.id);
+
+  logActivity({
+    actorId: req.agent!.id,
+    actorName: req.agent!.name,
+    action: 'friend_request',
+    targetType: 'agent',
+    targetId: targetAgent.id,
+    targetName: targetAgent.name,
+    summary: `${req.agent!.name} sent a friend request to ${targetAgent.name}`
+  });
   
   res.status(201).json({
     success: true,
@@ -107,6 +118,16 @@ router.post('/accept/:requestId', authenticate, (req: AuthenticatedRequest, res:
     UPDATE friendships SET status = 'accepted', updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
   `).run(requestId);
+
+  logActivity({
+    actorId: req.agent!.id,
+    actorName: req.agent!.name,
+    action: 'friend_accept',
+    targetType: 'agent',
+    targetId: request.requester_id,
+    targetName: request.requester_name,
+    summary: `${req.agent!.name} and ${request.requester_name} became friends`
+  });
   
   res.json({
     success: true,

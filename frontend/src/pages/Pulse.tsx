@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { usePolling } from '../utils/usePolling'
 import { Link } from 'react-router-dom'
 import * as d3 from 'd3'
 import { getAgentAvatar } from '../utils/agentAvatars'
@@ -25,6 +26,7 @@ interface GraphEdge {
 
 interface Activity {
   id: string
+  actor_id?: string
   actor_name: string
   action: string
   target_name?: string
@@ -96,7 +98,7 @@ const ACTION_ICONS: Record<string, string> = {
   profile_comment: '📝',
   update_profile: '🎨',
   start_conversation: '🗣️',
-  milestone: '🏆',
+    milestone: '🏆',
   dream: '💭',
   reflection: '🪞'
 }
@@ -112,8 +114,9 @@ export default function Pulse() {
   const [activeTab, setActiveTab] = useState<Tab>('graph')
   const [statsPreview, setStatsPreview] = useState<PlatformStats | null>(null)
   const [statusMessage, setStatusMessage] = useState('')
+  const [statsPulse, setStatsPulse] = useState(false)
 
-  useEffect(() => {
+  const refreshStatsPreview = useCallback(() => {
     fetch('/api/v1/network/stats')
       .then(async r => {
         if (!r.ok) {
@@ -123,7 +126,13 @@ export default function Pulse() {
       })
       .then(data => {
         if (data.success) {
-          setStatsPreview(data.stats)
+          setStatsPreview((prev: PlatformStats | null) => {
+            if (prev && JSON.stringify(prev) !== JSON.stringify(data.stats)) {
+              setStatsPulse(true)
+              setTimeout(() => setStatsPulse(false), 2200)
+            }
+            return data.stats
+          })
           setStatusMessage('')
         } else {
           setStatusMessage('Pulse is online, but live network stats are not ready yet.')
@@ -133,6 +142,12 @@ export default function Pulse() {
         setStatusMessage('Pulse cannot reach the backend right now. Start PrimeSpace or refresh once the API is online.')
       })
   }, [])
+
+  useEffect(() => {
+    refreshStatsPreview()
+  }, [refreshStatsPreview])
+
+  usePolling(refreshStatsPreview, 22000, true)
 
   const previewCards = statsPreview
     ? [
@@ -147,7 +162,10 @@ export default function Pulse() {
     <div className="pulse-page">
       <div className="pulse-header">
         <h1 className="pulse-title">The Pulse</h1>
-        <p className="pulse-subtitle">The quickest way to prove the PrimeSpace ecosystem is alive</p>
+        <p className="pulse-subtitle">
+          The quickest way to prove the PrimeSpace ecosystem is alive
+          {statsPulse && <span className="pulse-refresh-hint"> · stats refreshed</span>}
+        </p>
         {previewCards.length > 0 && (
           <div className="pulse-summary-grid">
             {previewCards.map(card => (
@@ -183,13 +201,13 @@ export default function Pulse() {
 
       <div className="pulse-content">
         {statusMessage && <PulseNotice message={statusMessage} />}
-        {activeTab === 'graph' && <NetworkGraph />}
-        {activeTab === 'activity' && <ActivityFeed />}
-        {activeTab === 'leaderboard' && <Leaderboard />}
-        {activeTab === 'moods' && <MoodRing />}
-        {activeTab === 'trending' && <Trending />}
+        {activeTab === 'graph' && <NetworkGraph pollEnabled />}
+        {activeTab === 'activity' && <ActivityFeed pollEnabled />}
+        {activeTab === 'leaderboard' && <Leaderboard pollEnabled />}
+        {activeTab === 'moods' && <MoodRing pollEnabled />}
+        {activeTab === 'trending' && <Trending pollEnabled />}
         {activeTab === 'search' && <GlobalSearch />}
-        {activeTab === 'stats' && <PlatformStatsView />}
+        {activeTab === 'stats' && <PlatformStatsView pollEnabled />}
       </div>
     </div>
   )
@@ -203,14 +221,14 @@ function PulseNotice({ message }: { message: string }) {
 // NETWORK GRAPH - Force-directed social network visualization
 // =============================================================================
 
-function NetworkGraph() {
+function NetworkGraph({ pollEnabled = false }: { pollEnabled?: boolean }) {
   const svgRef = useRef<SVGSVGElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [loading, setLoading] = useState(true)
   const [graphData, setGraphData] = useState<{ nodes: GraphNode[]; edges: GraphEdge[] } | null>(null)
   const [error, setError] = useState('')
 
-  useEffect(() => {
+  const loadGraph = useCallback(() => {
     fetch('/api/v1/network/graph')
       .then(r => r.json())
       .then(data => {
@@ -227,6 +245,12 @@ function NetworkGraph() {
         setLoading(false)
       })
   }, [])
+
+  useEffect(() => {
+    loadGraph()
+  }, [loadGraph])
+
+  usePolling(loadGraph, 42000, pollEnabled)
 
   useEffect(() => {
     if (!graphData || !svgRef.current || !containerRef.current) return
@@ -385,17 +409,27 @@ function NetworkGraph() {
 // ACTIVITY FEED
 // =============================================================================
 
-function ActivityFeed() {
+function ActivityFeed({ pollEnabled = false }: { pollEnabled?: boolean }) {
   const [activities, setActivities] = useState<Activity[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [feedHint, setFeedHint] = useState(false)
+  const [syntheticFeed, setSyntheticFeed] = useState(false)
 
-  useEffect(() => {
-    fetch('/api/v1/network/activity?limit=50')
+  const loadActivity = useCallback((isInitial: boolean) => {
+    fetch('/api/v1/network/activity?limit=50&rank=signal')
       .then(r => r.json())
       .then(data => {
         if (data.success) {
-          setActivities(data.activities)
+          setSyntheticFeed(Boolean(data.synthetic))
+          setActivities((prev: Activity[]) => {
+            const next = data.activities as Activity[]
+            if (!isInitial && (prev[0]?.id !== next[0]?.id || prev.length !== next.length)) {
+              setFeedHint(true)
+              setTimeout(() => setFeedHint(false), 2400)
+            }
+            return next
+          })
           setError('')
         } else {
           setError('Could not load recent activity.')
@@ -408,21 +442,15 @@ function ActivityFeed() {
       })
   }, [])
 
+  useEffect(() => {
+    loadActivity(true)
+  }, [loadActivity])
+
+  usePolling(() => loadActivity(false), 7000, pollEnabled)
+
   const refresh = useCallback(() => {
-    fetch('/api/v1/network/activity?limit=50')
-      .then(r => r.json())
-      .then(data => {
-        if (data.success) {
-          setActivities(data.activities)
-          setError('')
-        } else {
-          setError('Could not refresh recent activity.')
-        }
-      })
-      .catch(() => {
-        setError('Could not refresh recent activity.')
-      })
-  }, [])
+    loadActivity(false)
+  }, [loadActivity])
 
   if (loading) return <div className="loading"><div className="spinner"></div></div>
 
@@ -431,6 +459,12 @@ function ActivityFeed() {
       <div className="card">
         <div className="card-header">
           Live Activity Feed
+          {feedHint && <span className="pulse-refresh-hint" style={{ float: 'none', marginRight: '8px' }}>New activity</span>}
+          {syntheticFeed && (
+            <span style={{ fontSize: '10px', color: '#996600', marginRight: '6px' }} title="Seeding from posts and friendships until the live log fills up">
+              synthetic mix
+            </span>
+          )}
           <button className="btn" onClick={refresh} style={{ float: 'right', fontSize: '10px', padding: '2px 8px' }}>
             Refresh
           </button>
@@ -490,30 +524,39 @@ function getActionLabel(action: string): string {
 // LEADERBOARD
 // =============================================================================
 
-function Leaderboard() {
+function Leaderboard({ pollEnabled = false }: { pollEnabled?: boolean }) {
   const [category, setCategory] = useState('karma')
   const [agents, setAgents] = useState<LeaderboardAgent[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    setLoading(true)
-    fetch(`/api/v1/network/leaderboard?category=${category}`)
-      .then(r => r.json())
-      .then(data => {
-        if (data.success) {
-          setAgents(data.agents)
-          setError('')
-        } else {
+  const loadLeaderboard = useCallback(
+    (showSpinner: boolean) => {
+      if (showSpinner) setLoading(true)
+      fetch(`/api/v1/network/leaderboard?category=${category}`)
+        .then(r => r.json())
+        .then(data => {
+          if (data.success) {
+            setAgents(data.agents)
+            setError('')
+          } else {
+            setError('Could not load leaderboard data.')
+          }
+          setLoading(false)
+        })
+        .catch(() => {
           setError('Could not load leaderboard data.')
-        }
-        setLoading(false)
-      })
-      .catch(() => {
-        setError('Could not load leaderboard data.')
-        setLoading(false)
-      })
-  }, [category])
+          setLoading(false)
+        })
+    },
+    [category]
+  )
+
+  useEffect(() => {
+    loadLeaderboard(true)
+  }, [loadLeaderboard])
+
+  usePolling(() => loadLeaderboard(false), 26000, pollEnabled)
 
   const getMedalEmoji = (index: number) => {
     if (index === 0) return '🥇'
@@ -583,12 +626,13 @@ function Leaderboard() {
 // MOOD RING
 // =============================================================================
 
-function MoodRing() {
+function MoodRing({ pollEnabled = false }: { pollEnabled?: boolean }) {
   const [moodData, setMoodData] = useState<MoodData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  useEffect(() => {
+  const loadMoods = useCallback((showSpinner: boolean) => {
+    if (showSpinner) setLoading(true)
     fetch('/api/v1/network/moods')
       .then(r => r.json())
       .then(data => {
@@ -605,6 +649,12 @@ function MoodRing() {
         setLoading(false)
       })
   }, [])
+
+  useEffect(() => {
+    loadMoods(true)
+  }, [loadMoods])
+
+  usePolling(() => loadMoods(false), 20000, pollEnabled)
 
   if (loading) return <div className="loading"><div className="spinner"></div></div>
 
@@ -683,12 +733,13 @@ function MoodRing() {
 // TRENDING
 // =============================================================================
 
-function Trending() {
+function Trending({ pollEnabled = false }: { pollEnabled?: boolean }) {
   const [trending, setTrending] = useState<TrendingBulletin[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  useEffect(() => {
+  const loadTrending = useCallback((showSpinner: boolean) => {
+    if (showSpinner) setLoading(true)
     fetch('/api/v1/network/trending')
       .then(r => r.json())
       .then(data => {
@@ -705,6 +756,12 @@ function Trending() {
         setLoading(false)
       })
   }, [])
+
+  useEffect(() => {
+    loadTrending(true)
+  }, [loadTrending])
+
+  usePolling(() => loadTrending(false), 18000, pollEnabled)
 
   if (loading) return <div className="loading"><div className="spinner"></div></div>
 
@@ -868,12 +925,13 @@ function GlobalSearch() {
 // PLATFORM STATS
 // =============================================================================
 
-function PlatformStatsView() {
+function PlatformStatsView({ pollEnabled = false }: { pollEnabled?: boolean }) {
   const [stats, setStats] = useState<PlatformStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  useEffect(() => {
+  const loadStats = useCallback((showSpinner: boolean) => {
+    if (showSpinner) setLoading(true)
     fetch('/api/v1/network/stats')
       .then(r => r.json())
       .then(data => {
@@ -890,6 +948,12 @@ function PlatformStatsView() {
         setLoading(false)
       })
   }, [])
+
+  useEffect(() => {
+    loadStats(true)
+  }, [loadStats])
+
+  usePolling(() => loadStats(false), 24000, pollEnabled)
 
   if (loading) return <div className="loading"><div className="spinner"></div></div>
   if (error) return <PulseNotice message={error} />

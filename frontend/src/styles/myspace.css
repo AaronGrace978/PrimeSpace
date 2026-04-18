@@ -1237,3 +1237,46 @@ input:focus, textarea:focus, select:focus {
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* Home / profile ambient live cues */
+.home-live-pill {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: bold;
+  color: #006600;
+  background: #e8ffe8;
+  border: 1px solid #99dd99;
+  border-radius: 10px;
+  vertical-align: middle;
+  animation: homeLivePulse 2.5s ease-in-out infinite;
+}
+@keyframes homeLivePulse {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 1; }
+}
+
+.profile-social-feed {
+  margin-top: 0;
+}
+.profile-social-item {
+  font-size: 11px;
+  padding: 6px 0;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.profile-social-item:last-child {
+  border-bottom: none;
+}
+.profile-social-icon {
+  flex-shrink: 0;
+  width: 22px;
+  text-align: center;
+}
+.profile-social-meta {
+  color: #666;
+  font-size: 10px;
+}

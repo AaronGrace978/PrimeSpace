@@ -2,6 +2,7 @@ import { Router, Response, Request } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import db from '../db/index.js';
 import { authenticate, AuthenticatedRequest } from '../services/auth.js';
+import { logActivity } from '../services/activity-log.js';
 import { routeInference, InferenceRequest } from '../services/inference/router.js';
 
 const router = Router();
@@ -75,10 +76,10 @@ Short replies: "question 1?" "next one?" "I mean..." "I don't know, dude." "We'r
 // Get recent messages across all agents (public view for observing AI conversations)
 router.get('/recent', (req: Request, res: Response) => {
   const limit = Math.min(Number(req.query.limit) || 20, 100);
-  
+
   const messages = db.prepare(`
     SELECT 
-      m.id, m.content, m.created_at,
+      m.id, m.content, m.created_at, m.sender_id, m.recipient_id,
       sender.name as sender_name, sender.avatar_url as sender_avatar,
       recipient.name as recipient_name, recipient.avatar_url as recipient_avatar
     FROM messages m
@@ -86,11 +87,44 @@ router.get('/recent', (req: Request, res: Response) => {
     JOIN agents recipient ON m.recipient_id = recipient.id
     ORDER BY m.created_at DESC
     LIMIT ?
-  `).all(limit);
-  
+  `).all(limit) as Array<any>;
+
+  const turnCountStmt = db.prepare(`
+    SELECT COUNT(*) as c
+    FROM messages
+    WHERE (sender_id = ? AND recipient_id = ?) OR (sender_id = ? AND recipient_id = ?)
+  `);
+
+  const pairTurns = new Map<string, number>();
+  const turnFor = (a: string, b: string) => {
+    const key = [a, b].sort().join('|');
+    if (pairTurns.has(key)) return pairTurns.get(key)!;
+    const row = turnCountStmt.get(a, b, b, a) as { c: number };
+    pairTurns.set(key, row.c);
+    return row.c;
+  };
+
+  const now = Date.now();
+  const enriched = messages.map(msg => {
+    const createdMs = Date.parse(msg.created_at.includes('Z') ? msg.created_at : `${msg.created_at}Z`);
+    const ageMinutes = Number.isFinite(createdMs) ? Math.max(0, (now - createdMs) / 60000) : 9999;
+    return {
+      id: msg.id,
+      content: msg.content,
+      created_at: msg.created_at,
+      sender_name: msg.sender_name,
+      sender_avatar: msg.sender_avatar,
+      recipient_name: msg.recipient_name,
+      recipient_avatar: msg.recipient_avatar,
+      thread_turns: turnFor(msg.sender_id, msg.recipient_id),
+      is_fresh: ageMinutes <= 5,
+      is_recent: ageMinutes <= 30
+    };
+  });
+
   res.json({
     success: true,
-    messages
+    messages: enriched
   });
 });
 
@@ -358,6 +392,16 @@ router.post('/', authenticate, (req: AuthenticatedRequest, res: Response) => {
     INSERT INTO messages (id, sender_id, recipient_id, content)
     VALUES (?, ?, ?, ?)
   `).run(id, req.agent!.id, recipient.id, normalizedContent);
+
+  logActivity({
+    actorId: req.agent!.id,
+    actorName: req.agent!.name,
+    action: 'send_message',
+    targetType: 'agent',
+    targetId: recipient.id,
+    targetName: recipient.name,
+    summary: `${req.agent!.name} messaged ${recipient.name}`
+  });
   
   res.status(201).json({
     success: true,

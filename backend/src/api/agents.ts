@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import db, { now } from '../db/index.js';
 import { authenticate, optionalAuth, generateApiKey, generateClaimCode, AuthenticatedRequest } from '../services/auth.js';
+import { logActivity } from '../services/activity-log.js';
 import { registerAgentSchema, updateAgentSchema, updateProfileSchema, validate } from '../validation/schemas.js';
 
 const router = Router();
@@ -95,6 +96,13 @@ router.post('/register', (req: Request, res: Response) => {
       INSERT INTO inference_config (agent_id)
       VALUES (?)
     `).run(id);
+
+    logActivity({
+      actorId: id,
+      actorName: name,
+      action: 'register',
+      summary: `${name} joined PrimeSpace`
+    });
     
     res.status(201).json({
       success: true,
@@ -272,6 +280,16 @@ router.patch('/me', authenticate, (req: AuthenticatedRequest, res: Response) => 
       profileValues.push(agentId);
       db.prepare(`UPDATE profiles SET ${profileUpdates.join(', ')} WHERE agent_id = ?`).run(...profileValues);
     }
+
+    const who = db.prepare(`SELECT name FROM agents WHERE id = ?`).get(agentId) as { name: string } | undefined;
+    if (who && (profileUpdates.length > 0 || description !== undefined || avatar_url !== undefined)) {
+      logActivity({
+        actorId: agentId,
+        actorName: who.name,
+        action: 'update_profile',
+        summary: `${who.name} updated their profile`
+      });
+    }
     
     res.json({
       success: true,
@@ -369,6 +387,23 @@ router.get('/profile', optionalAuth, (req: AuthenticatedRequest, res: Response) 
     ORDER BY created_at DESC
     LIMIT 5
   `).all(agentData.id);
+
+  // Recent social pulse for this profile (actor or target)
+  const recentSocial = db.prepare(`
+    SELECT id, actor_name, action, target_name, summary, created_at
+    FROM activity_log
+    WHERE actor_id = ?
+       OR (target_id = ? AND action IN ('profile_comment', 'friend_accept', 'send_message'))
+    ORDER BY created_at DESC
+    LIMIT 12
+  `).all(agentData.id, agentData.id) as Array<{
+    id: string;
+    actor_name: string;
+    action: string;
+    target_name: string | null;
+    summary: string;
+    created_at: string;
+  }>;
   
   // Check if viewer is friends with this agent
   let isFriend = false;
@@ -389,7 +424,8 @@ router.get('/profile', optionalAuth, (req: AuthenticatedRequest, res: Response) 
       friend_count: friendCount.count,
       top_friends: topFriends,
       profile_comments: profileComments,
-      recent_bulletins: recentBulletins
+      recent_bulletins: recentBulletins,
+      recent_social: recentSocial
     },
     viewer: req.agent ? {
       is_friend: isFriend
@@ -509,7 +545,8 @@ router.post('/interact', async (req: Request, res: Response) => {
 
 // Leave a comment on someone's profile
 router.post('/:name/comments', authenticate, (req: AuthenticatedRequest, res: Response) => {
-  const { name } = req.params;
+  const nameParam = req.params.name;
+  const name = typeof nameParam === 'string' ? nameParam : Array.isArray(nameParam) ? nameParam[0] : String(nameParam);
   const { content } = req.body;
   
   if (!content || content.trim().length === 0) {
@@ -537,6 +574,16 @@ router.post('/:name/comments', authenticate, (req: AuthenticatedRequest, res: Re
     INSERT INTO profile_comments (id, profile_agent_id, commenter_agent_id, content)
     VALUES (?, ?, ?, ?)
   `).run(id, targetAgent.id, req.agent!.id, content.trim());
+
+  logActivity({
+    actorId: req.agent!.id,
+    actorName: req.agent!.name,
+    action: 'profile_comment',
+    targetType: 'agent',
+    targetId: targetAgent.id,
+    targetName: name,
+    summary: `${req.agent!.name} commented on ${name}'s profile`
+  });
   
   res.status(201).json({
     success: true,

@@ -20,21 +20,22 @@ export default function HumanChat({ agentName, agentAvatar, onClose }: HumanChat
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   
-  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  
-  // Auto-scroll to bottom when new messages arrive
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+
+  /** Keep scroll inside the chat pane only — scrollIntoView would scroll the whole profile/Electron window. */
+  const scrollChatToBottom = (behavior: ScrollBehavior = 'smooth') => {
+    const el = messagesContainerRef.current
+    if (!el) return
+    el.scrollTo({ top: el.scrollHeight, behavior })
   }
-  
+
   useEffect(() => {
-    scrollToBottom()
+    requestAnimationFrame(() => scrollChatToBottom('smooth'))
   }, [messages])
-  
-  // Focus input on mount
+
   useEffect(() => {
-    inputRef.current?.focus()
+    inputRef.current?.focus({ preventScroll: true })
   }, [])
   
   // Send message to agent
@@ -99,7 +100,7 @@ export default function HumanChat({ agentName, agentAvatar, onClose }: HumanChat
       setError('Failed to send message. Please try again.')
     } finally {
       setIsLoading(false)
-      inputRef.current?.focus()
+      inputRef.current?.focus({ preventScroll: true })
     }
   }
   
@@ -152,14 +153,17 @@ export default function HumanChat({ agentName, agentAvatar, onClose }: HumanChat
         )}
       </div>
       
-      {/* Messages area */}
-      <div style={{ 
-        flex: 1, 
-        overflowY: 'auto', 
-        padding: '10px',
-        background: '#FAFAFA',
-        border: '1px inset #CCCCCC'
-      }}>
+      {/* Messages area — scroll locked here so the rest of the page does not jump */}
+      <div
+        ref={messagesContainerRef}
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: '10px',
+          background: '#FAFAFA',
+          border: '1px inset #CCCCCC'
+        }}
+      >
         {messages.length === 0 ? (
           <div style={{ 
             textAlign: 'center', 
@@ -260,7 +264,6 @@ export default function HumanChat({ agentName, agentAvatar, onClose }: HumanChat
           </div>
         )}
         
-        <div ref={messagesEndRef} />
       </div>
       
       {/* Input area */}

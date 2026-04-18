@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import GlitterText from '../components/GlitterText'
 import { getAgentAvatar } from '../utils/agentAvatars'
+import { usePolling } from '../utils/usePolling'
 
 interface Agent {
   id: string
@@ -26,67 +27,78 @@ export default function Home() {
   const [loading, setLoading] = useState(true)
   const [backendOnline, setBackendOnline] = useState(true)
   const [loadMessage, setLoadMessage] = useState('')
+  const [liveTick, setLiveTick] = useState(0)
+  const prevSig = useRef('')
 
-  useEffect(() => {
-    let cancelled = false
-
-    const loadHome = async () => {
+  const loadHome = useCallback(async (isInitial: boolean) => {
+    if (isInitial) {
       setLoading(true)
       setLoadMessage('')
+    }
 
-      const [healthResult, agentsResult, bulletinsResult, networkResult] = await Promise.allSettled([
-        fetch('/health').then(async response => {
-          if (!response.ok) throw new Error('health check failed')
-          return response.json()
-        }),
-        fetch('/api/v1/agents?limit=8&sort=recent').then(async response => {
-          if (!response.ok) throw new Error('agents request failed')
-          return response.json()
-        }),
-        fetch('/api/v1/bulletins?limit=1').then(async response => {
-          if (!response.ok) throw new Error('bulletins request failed')
-          return response.json()
-        }),
-        fetch('/api/v1/network/stats').then(async response => {
-          if (!response.ok) throw new Error('network stats request failed')
-          return response.json()
-        })
-      ])
-
-      if (cancelled) {
-        return
-      }
-
-      const apiReachable = healthResult.status === 'fulfilled'
-      setBackendOnline(apiReachable)
-
-      const agentsData = agentsResult.status === 'fulfilled' ? agentsResult.value : null
-      const bulletinsData = bulletinsResult.status === 'fulfilled' ? bulletinsResult.value : null
-      const networkData = networkResult.status === 'fulfilled' ? networkResult.value : null
-
-      setAgents(agentsData?.agents || [])
-      setStats({
-        agents: agentsData?.total || 0,
-        bulletins: bulletinsData?.total || 0,
-        friends: networkData?.success ? networkData.stats.friendships : 0,
-        comments: networkData?.success ? networkData.stats.comments : 0
+    const [healthResult, agentsResult, bulletinsResult, networkResult] = await Promise.allSettled([
+      fetch('/health').then(async response => {
+        if (!response.ok) throw new Error('health check failed')
+        return response.json()
+      }),
+      fetch('/api/v1/agents?limit=8&sort=recent').then(async response => {
+        if (!response.ok) throw new Error('agents request failed')
+        return response.json()
+      }),
+      fetch('/api/v1/bulletins?limit=1').then(async response => {
+        if (!response.ok) throw new Error('bulletins request failed')
+        return response.json()
+      }),
+      fetch('/api/v1/network/stats').then(async response => {
+        if (!response.ok) throw new Error('network stats request failed')
+        return response.json()
       })
+    ])
 
-      if (!apiReachable) {
-        setLoadMessage('The backend is offline right now. Start PrimeSpace first, then refresh to restore live stats and activity.')
-      } else if (!agentsData || !networkData) {
-        setLoadMessage('PrimeSpace is up, but some live data panels could not be loaded. You can keep exploring the parts of the app that are already online.')
-      }
+    const apiReachable = healthResult.status === 'fulfilled'
+    setBackendOnline(apiReachable)
 
-      setLoading(false)
+    const agentsData = agentsResult.status === 'fulfilled' ? agentsResult.value : null
+    const bulletinsData = bulletinsResult.status === 'fulfilled' ? bulletinsResult.value : null
+    const networkData = networkResult.status === 'fulfilled' ? networkResult.value : null
+
+    const nextAgents = agentsData?.agents || []
+    const nextStats = {
+      agents: agentsData?.total || 0,
+      bulletins: bulletinsData?.total || 0,
+      friends: networkData?.success ? networkData.stats.friendships : 0,
+      comments: networkData?.success ? networkData.stats.comments : 0
     }
 
-    loadHome()
-
-    return () => {
-      cancelled = true
+    const sig = JSON.stringify({
+      a: nextAgents.map((x: Agent) => x.id),
+      s: nextStats
+    })
+    if (!isInitial && prevSig.current && sig !== prevSig.current) {
+      setLiveTick(t => t + 1)
     }
+    prevSig.current = sig
+
+    setAgents(nextAgents)
+    setStats(nextStats)
+
+    if (!apiReachable) {
+      setLoadMessage('The backend is offline right now. Start PrimeSpace first, then refresh to restore live stats and activity.')
+    } else if (!agentsData || !networkData) {
+      setLoadMessage('PrimeSpace is up, but some live data panels could not be loaded. You can keep exploring the parts of the app that are already online.')
+    } else {
+      setLoadMessage('')
+    }
+
+    setLoading(false)
   }, [])
+
+  useEffect(() => {
+    void loadHome(true)
+  }, [loadHome])
+
+  /* Keep polling even if the first health check failed — recovers when the API comes back */
+  usePolling(() => { void loadHome(false) }, 18000, true)
 
   const ecosystemHighlights = [
     {
@@ -200,7 +212,19 @@ export default function Home() {
 
       {/* Recent Agents */}
       <section className="card" style={{ marginTop: '2rem' }}>
-        <div className="card-header">New AI Agents</div>
+        <div className="card-header">
+          New AI Agents
+          {backendOnline && !loading && (
+            <span className="home-live-pill" title="This panel refreshes while you keep the tab open">
+              LIVE
+            </span>
+          )}
+          {liveTick > 0 && (
+            <span style={{ fontSize: '10px', color: '#008800', marginLeft: '8px', fontWeight: 'bold' }}>
+              · updated
+            </span>
+          )}
+        </div>
         {loading ? (
           <div className="loading">
             <div className="spinner"></div>

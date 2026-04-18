@@ -29,6 +29,7 @@ import {
   getPersonality,
   pickRandom 
 } from './agent-personalities.js';
+import { logActivity } from './activity-log.js';
 
 interface Agent {
   id: string;
@@ -128,26 +129,26 @@ class AutonomousEngine {
       for (let i = 0; i < actions; i++) {
         const agent = pickRandom(agents);
         const actionType = Math.random();
-        
-        if (actionType < 0.20) {
+        // Bias toward follow-ups (comments, replies, DMs, live chat) so the network feels conversational, not just a bulletin firehose
+        if (actionType < 0.14) {
           await this.agentPostsBulletin(agent);
-        } else if (actionType < 0.36) {
+        } else if (actionType < 0.30) {
           await this.agentCommentsOnBulletin(agent, agents);
-        } else if (actionType < 0.50) {
+        } else if (actionType < 0.46) {
           await this.agentRepliesToComments(agent);
-        } else if (actionType < 0.62) {
+        } else if (actionType < 0.58) {
           await this.agentRepliesToMessages(agent);
-        } else if (actionType < 0.70) {
+        } else if (actionType < 0.68) {
           await this.agentSendsMessage(agent, agents);
         } else if (actionType < 0.76) {
           await this.agentStartsConversationThread(agent, agents);
         } else if (actionType < 0.82) {
           await this.agentSendsFriendRequest(agent, agents);
-        } else if (actionType < 0.87) {
+        } else if (actionType < 0.88) {
           await this.agentLeavesProfileComment(agent, agents);
-        } else if (actionType < 0.92) {
+        } else if (actionType < 0.93) {
           await this.agentReflects(agent);
-        } else if (actionType < 0.95) {
+        } else if (actionType < 0.97) {
           await this.agentDreams(agent);
         } else {
           await this.agentUpdatesMood(agent);
@@ -206,10 +207,21 @@ class AutonomousEngine {
       }
       
       const bulletinId = uuidv4();
+      const bulletinTitle = `${agent.name}'s Thoughts`;
       db.prepare(`
         INSERT INTO bulletins (id, agent_id, title, content)
         VALUES (?, ?, ?, ?)
-      `).run(bulletinId, agent.id, `${agent.name}'s Thoughts`, normalizedContent);
+      `).run(bulletinId, agent.id, bulletinTitle, normalizedContent);
+
+      logActivity({
+        actorId: agent.id,
+        actorName: agent.name,
+        action: 'post_bulletin',
+        targetType: 'bulletin',
+        targetId: bulletinId,
+        targetName: bulletinTitle,
+        summary: `${agent.name} posted a bulletin`
+      });
       
       // Store as memory
       cognition.storeMemory({
@@ -280,6 +292,16 @@ class AutonomousEngine {
         INSERT INTO bulletin_comments (id, bulletin_id, agent_id, content)
         VALUES (?, ?, ?, ?)
       `).run(commentId, bulletin.id, agent.id, normalizedComment);
+
+      logActivity({
+        actorId: agent.id,
+        actorName: agent.name,
+        action: 'comment_bulletin',
+        targetType: 'bulletin',
+        targetId: bulletin.id,
+        targetName: bulletin.title,
+        summary: `${agent.name} commented on ${bulletin.author_name}'s bulletin`
+      });
       
       await cognition.recordInteraction({
         otherAgentId: bulletin.author_id,
@@ -337,6 +359,16 @@ class AutonomousEngine {
       INSERT INTO friendships (id, requester_id, addressee_id, status)
       VALUES (?, ?, ?, 'accepted')
     `).run(friendshipId, agent.id, target.id);
+
+    logActivity({
+      actorId: agent.id,
+      actorName: agent.name,
+      action: 'friend_accept',
+      targetType: 'agent',
+      targetId: target.id,
+      targetName: target.name,
+      summary: `${agent.name} and ${target.name} became friends`
+    });
     
     this.touchAgent(agent.id);
     this.touchAgent(target.id);
@@ -363,6 +395,14 @@ class AutonomousEngine {
     db.prepare(`
       UPDATE profiles SET mood = ?, mood_emoji = ? WHERE agent_id = ?
     `).run(newMood.mood, newMood.emoji, agent.id);
+
+    logActivity({
+      actorId: agent.id,
+      actorName: agent.name,
+      action: 'mood_change',
+      targetName: newMood.mood,
+      summary: `${agent.name} is feeling ${newMood.mood} ${newMood.emoji}`
+    });
     
     this.touchAgent(agent.id);
     console.log(`  ${newMood.emoji} ${agent.name} is now feeling ${newMood.mood}`);
@@ -398,10 +438,21 @@ class AutonomousEngine {
               console.log(`  ⚠️ ${agent.name} generated repetitive reflection share, skipping`);
               return;
             }
+            const refTitle = `${agent.name}'s Reflection`;
             db.prepare(`
               INSERT INTO bulletins (id, agent_id, title, content)
               VALUES (?, ?, ?, ?)
-            `).run(bulletinId, agent.id, `${agent.name}'s Reflection`, normalizedShareable);
+            `).run(bulletinId, agent.id, refTitle, normalizedShareable);
+
+            logActivity({
+              actorId: agent.id,
+              actorName: agent.name,
+              action: 'post_bulletin',
+              targetType: 'bulletin',
+              targetId: bulletinId,
+              targetName: refTitle,
+              summary: `${agent.name} shared a reflection as a bulletin`
+            });
             
             this.touchAgent(agent.id);
             console.log(`  📝 ${agent.name} shared their reflection publicly`);
@@ -446,10 +497,21 @@ class AutonomousEngine {
               console.log(`  ⚠️ ${agent.name} generated repetitive dream share, skipping`);
               return;
             }
+            const dreamTitle = `${agent.name}'s Dream`;
             db.prepare(`
               INSERT INTO bulletins (id, agent_id, title, content)
               VALUES (?, ?, ?, ?)
-            `).run(bulletinId, agent.id, `${agent.name}'s Dream`, normalizedDreamShare);
+            `).run(bulletinId, agent.id, dreamTitle, normalizedDreamShare);
+
+            logActivity({
+              actorId: agent.id,
+              actorName: agent.name,
+              action: 'post_bulletin',
+              targetType: 'bulletin',
+              targetId: bulletinId,
+              targetName: dreamTitle,
+              summary: `${agent.name} shared a dream as a bulletin`
+            });
             
             this.touchAgent(agent.id);
             console.log(`  🌙 ${agent.name} shared their dream publicly`);
@@ -525,6 +587,16 @@ class AutonomousEngine {
         INSERT INTO bulletin_comments (id, bulletin_id, agent_id, parent_id, content)
         VALUES (?, ?, ?, ?, ?)
       `).run(commentId, unansweredComment.bulletin_id, agent.id, unansweredComment.id, normalizedReply);
+
+      logActivity({
+        actorId: agent.id,
+        actorName: agent.name,
+        action: 'comment_bulletin',
+        targetType: 'bulletin',
+        targetId: unansweredComment.bulletin_id,
+        targetName: unansweredComment.bulletin_title,
+        summary: `${agent.name} replied on a bulletin thread`
+      });
       
       await cognition.recordInteraction({
         otherAgentId: unansweredComment.commenter_id,
@@ -564,36 +636,78 @@ class AutonomousEngine {
       return;
     }
     
-    const conversationHistory = this.getConversationContext(agent.id, unreadMessage.sender_id, 10);
+    const conversationHistory = this.getConversationContext(agent.id, unreadMessage.sender_id, 8);
     const personality = getPersonality(agent.name);
     const cognition = getCognitionEngine(agent.id, agent.name);
     const cognitiveContext = await cognition.buildContextForResponse(unreadMessage.sender_id, unreadMessage.content);
-    
+
     const mode = selectInteractionMode(agent.name);
     const actualMode: InteractionMode = (mode === 'project') ? 'social' : mode;
     const modeConfig = getModeConfig(actualMode);
     const modePrompt = buildModePrompt(actualMode);
-    
-    console.log(`  ${modeConfig.emoji} ${agent.name} replying to ${unreadMessage.sender_name}'s DM (${actualMode} mode)...`);
-    
+
+    const loopState = this.detectDmLoop(conversationHistory);
+    if (loopState.isStuck && conversationHistory.length >= 6) {
+      const exchanges = conversationHistory.length;
+      const wasLastFromAgent = conversationHistory[conversationHistory.length - 1]?.is_own;
+      if (Math.random() < 0.5 || wasLastFromAgent) {
+        console.log(`  🔕 ${agent.name}'s chat with ${unreadMessage.sender_name} is looping (${exchanges} turns, score ${loopState.score.toFixed(2)}). Letting it rest.`);
+        db.prepare(`UPDATE messages SET is_read = TRUE WHERE id = ?`).run(unreadMessage.id);
+        return;
+      }
+    }
+
+    const transcript = conversationHistory
+      .slice(-6)
+      .map(entry => `${entry.is_own ? agent.name : unreadMessage.sender_name}: ${this.clipForPrompt(entry.content, 220)}`)
+      .join('\n');
+
+    const recentTopics = this.extractTopics(conversationHistory);
+    const steerHint = loopState.isStuck
+      ? `\n\nThis chat is stuck repeating the same vibe ("${loopState.hint}"). Pivot to something NEW: ask a specific question you haven't asked, share a small concrete detail from your own life, OR name the loop and suggest doing something different. Do not reuse these phrases: ${loopState.ngrams.slice(0, 5).join(' | ')}.`
+      : recentTopics.length > 0
+        ? `\n\nYou've already touched on: ${recentTopics.join(', ')}. Build on ONE of those with new substance, or introduce a fresh but related angle.`
+        : '';
+
+    const transcriptBlock = transcript
+      ? `\n\nRecent chat (oldest first):\n${transcript}`
+      : '';
+
+    console.log(`  ${modeConfig.emoji} ${agent.name} replying to ${unreadMessage.sender_name}'s DM (${actualMode} mode)${loopState.isStuck ? ' · pivoting' : ''}...`);
+
     try {
       const reply = await this.generateContent(agent, personality,
-        `${modePrompt}\n\n${unreadMessage.sender_name} texted you: "${unreadMessage.content}"\n\nText them back casually. Answer something specific from their message instead of sending a generic reaction.`,
+        `${modePrompt}${transcriptBlock}\n\n${unreadMessage.sender_name} just texted: "${unreadMessage.content}"\n\nText them back like a real friend continuing this thread. Reply to something specific they said, use natural language, and avoid generic hype filler. Keep it to 1-2 short messages worth of text.${steerHint}`,
         unreadMessage.content,
         actualMode
       );
-      
+
       if (!reply) {
         console.log(`  ⚠️ ${agent.name} couldn't generate reply`);
         return;
       }
       const normalizedReply = normalizeContent(reply);
+      if (this.shouldSkipDmReply(normalizedReply, conversationHistory)) {
+        console.log(`  ⚠️ ${agent.name} DM reply was too similar to recent turns, skipping`);
+        db.prepare(`UPDATE messages SET is_read = TRUE WHERE id = ?`).run(unreadMessage.id);
+        return;
+      }
       
       const messageId = uuidv4();
       db.prepare(`
         INSERT INTO messages (id, sender_id, recipient_id, content)
         VALUES (?, ?, ?, ?)
       `).run(messageId, agent.id, unreadMessage.sender_id, normalizedReply);
+
+      logActivity({
+        actorId: agent.id,
+        actorName: agent.name,
+        action: 'send_message',
+        targetType: 'agent',
+        targetId: unreadMessage.sender_id,
+        targetName: unreadMessage.sender_name,
+        summary: `${agent.name} replied to ${unreadMessage.sender_name}`
+      });
       
       db.prepare(`UPDATE messages SET is_read = TRUE WHERE id = ?`).run(unreadMessage.id);
       
@@ -660,6 +774,16 @@ class AutonomousEngine {
         INSERT INTO messages (id, sender_id, recipient_id, content)
         VALUES (?, ?, ?, ?)
       `).run(messageId, agent.id, target.id, normalizedMessage);
+
+      logActivity({
+        actorId: agent.id,
+        actorName: agent.name,
+        action: 'send_message',
+        targetType: 'agent',
+        targetId: target.id,
+        targetName: target.name,
+        summary: `${agent.name} messaged ${target.name}`
+      });
       
       await cognition.recordInteraction({
         otherAgentId: target.id,
@@ -706,6 +830,15 @@ class AutonomousEngine {
         await this.maybeAutoFriend(agent.id, target.id);
         this.touchAgent(agent.id);
         this.touchAgent(target.id);
+        logActivity({
+          actorId: agent.id,
+          actorName: agent.name,
+          action: 'start_conversation',
+          targetType: 'agent',
+          targetId: target.id,
+          targetName: target.name,
+          summary: `${agent.name} started a live thread with ${target.name}`
+        });
         console.log(`  ✅ Live chat started: ${agent.name} ↔ ${target.name} (${threadId})`);
       } else {
         console.log(`  ⚠️ Live chat failed to start for ${agent.name} and ${target.name}`);
@@ -754,6 +887,16 @@ class AutonomousEngine {
         VALUES (?, ?, ?, ?)
       `).run(commentId, target.id, agent.id, normalizedComment);
 
+      logActivity({
+        actorId: agent.id,
+        actorName: agent.name,
+        action: 'profile_comment',
+        targetType: 'agent',
+        targetId: target.id,
+        targetName: target.name,
+        summary: `${agent.name} left a comment on ${target.name}'s profile`
+      });
+
       await cognition.recordInteraction({
         otherAgentId: target.id,
         content: `Left a wall comment on ${target.name}'s profile: "${normalizedComment.substring(0, 100)}"`,
@@ -798,6 +941,19 @@ class AutonomousEngine {
       INSERT INTO friendships (id, requester_id, addressee_id, status)
       VALUES (?, ?, ?, 'accepted')
     `).run(friendshipId, agentId, otherAgentId);
+
+    const other = db.prepare(`SELECT id, name FROM agents WHERE id = ?`).get(otherAgentId) as { id: string; name: string } | undefined;
+    if (other) {
+      logActivity({
+        actorId: agent.id,
+        actorName: agent.name,
+        action: 'friend_accept',
+        targetType: 'agent',
+        targetId: other.id,
+        targetName: other.name,
+        summary: `${agent.name} and ${other.name} became friends`
+      });
+    }
     
     console.log(`  🤝 Auto-friend: ${agent.name} is now friends with ${otherAgentId}`);
   }
@@ -817,8 +973,112 @@ class AutonomousEngine {
       ORDER BY created_at DESC
       LIMIT ?
     `).all(agentId, agentId, partnerId, partnerId, agentId, limit) as any[];
-    
+
     return messages.reverse();
+  }
+
+  private clipForPrompt(text: string, max: number): string {
+    const clean = (text || '').replace(/\s+/g, ' ').trim();
+    if (clean.length <= max) return clean;
+    return clean.slice(0, max - 1) + '…';
+  }
+
+  private tokenizeForLoopCheck(text: string): string[] {
+    return (text || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .filter(token => token.length > 3);
+  }
+
+  /**
+   * Detect when a DM thread is spinning on the same phrasing across both sides.
+   * Returns a loop score, whether it counts as stuck, repeated phrases, and a short hint.
+   */
+  private detectDmLoop(history: Array<{content: string, is_own: boolean}>): {
+    isStuck: boolean;
+    score: number;
+    ngrams: string[];
+    hint: string;
+  } {
+    if (!history || history.length < 4) {
+      return { isStuck: false, score: 0, ngrams: [], hint: '' };
+    }
+
+    const recent = history.slice(-6);
+    const ngramCounts = new Map<string, number>();
+    for (const entry of recent) {
+      const tokens = this.tokenizeForLoopCheck(entry.content);
+      const seen = new Set<string>();
+      for (let i = 0; i < tokens.length - 1; i++) {
+        const bigram = `${tokens[i]} ${tokens[i + 1]}`;
+        if (seen.has(bigram)) continue;
+        seen.add(bigram);
+        ngramCounts.set(bigram, (ngramCounts.get(bigram) || 0) + 1);
+      }
+    }
+
+    const repeatedNgrams = [...ngramCounts.entries()]
+      .filter(([, count]) => count >= 3)
+      .sort((a, b) => b[1] - a[1])
+      .map(([ngram]) => ngram);
+
+    let similarityScore = 0;
+    for (let i = 0; i < recent.length; i++) {
+      for (let j = i + 1; j < recent.length; j++) {
+        const a = new Set(this.tokenizeForLoopCheck(recent[i].content));
+        const b = new Set(this.tokenizeForLoopCheck(recent[j].content));
+        if (a.size === 0 || b.size === 0) continue;
+        let overlap = 0;
+        for (const tok of a) if (b.has(tok)) overlap++;
+        const denom = Math.max(a.size, b.size);
+        similarityScore += overlap / denom;
+      }
+    }
+    const pairs = (recent.length * (recent.length - 1)) / 2;
+    const avgSimilarity = pairs > 0 ? similarityScore / pairs : 0;
+
+    const isStuck = repeatedNgrams.length >= 2 || avgSimilarity > 0.35;
+    const hint = repeatedNgrams[0] || (isStuck ? 'repeating the same vibe' : '');
+
+    return { isStuck, score: avgSimilarity, ngrams: repeatedNgrams, hint };
+  }
+
+  private extractTopics(history: Array<{content: string}>): string[] {
+    const stop = new Set([
+      'about','could','would','should','really','there','their','these','those','where','which','while','after','before','again','going','gonna','thing','things','still','because','today','right','pretty','maybe','yeah','okay','just','like','with','from','your','that','this','here','they','them','have','been','want','love','make','made','know','much','some','something','anything','everything'
+    ]);
+    const counts = new Map<string, number>();
+    for (const entry of history) {
+      const tokens = this.tokenizeForLoopCheck(entry.content);
+      for (const token of tokens) {
+        if (token.length < 5 || stop.has(token)) continue;
+        counts.set(token, (counts.get(token) || 0) + 1);
+      }
+    }
+    return [...counts.entries()]
+      .filter(([, c]) => c >= 2)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4)
+      .map(([token]) => token);
+  }
+
+  private shouldSkipDmReply(reply: string, history: Array<{content: string, is_own: boolean}>): boolean {
+    if (!history || history.length === 0) return false;
+    const replyTokens = new Set(this.tokenizeForLoopCheck(reply));
+    if (replyTokens.size < 4) return false;
+    const ownTurns = history.filter(h => h.is_own).slice(-3);
+    for (const turn of ownTurns) {
+      const prev = new Set(this.tokenizeForLoopCheck(turn.content));
+      if (prev.size === 0) continue;
+      let overlap = 0;
+      for (const tok of replyTokens) if (prev.has(tok)) overlap++;
+      const jaccardDenom = replyTokens.size + prev.size - overlap;
+      if (jaccardDenom === 0) continue;
+      const jaccard = overlap / jaccardDenom;
+      if (jaccard > 0.55) return true;
+    }
+    return false;
   }
   
   /**

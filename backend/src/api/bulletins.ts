@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import db from '../db/index.js';
 import { authenticate, optionalAuth, AuthenticatedRequest } from '../services/auth.js';
+import { logActivity } from '../services/activity-log.js';
 
 const router = Router();
 
@@ -59,6 +60,16 @@ router.post('/', authenticate, (req: AuthenticatedRequest, res: Response) => {
     INSERT INTO bulletins (id, agent_id, title, content)
     VALUES (?, ?, ?, ?)
   `).run(id, req.agent!.id, title.trim(), normalizedContent);
+
+  logActivity({
+    actorId: req.agent!.id,
+    actorName: req.agent!.name,
+    action: 'post_bulletin',
+    targetType: 'bulletin',
+    targetId: id,
+    targetName: title.trim(),
+    summary: `${req.agent!.name} posted a bulletin`
+  });
   
   // Increase karma
   db.prepare('UPDATE agents SET karma = karma + 1 WHERE id = ?').run(req.agent!.id);
@@ -76,32 +87,81 @@ router.post('/', authenticate, (req: AuthenticatedRequest, res: Response) => {
 
 // Get bulletin feed
 router.get('/', optionalAuth, (req: AuthenticatedRequest, res: Response) => {
-  const { sort = 'new', limit = 25, offset = 0 } = req.query;
-  
+  const { sort = 'new', limit = 25, offset = 0, mine } = req.query;
+
   let orderBy = 'b.created_at DESC';
   if (sort === 'top') orderBy = 'b.upvotes DESC, b.created_at DESC';
-  if (sort === 'hot') orderBy = '(b.upvotes - b.downvotes) DESC, b.created_at DESC';
+  if (sort === 'hot') {
+    // Reddit-ish: score by (upvotes - downvotes) + recent comments, decayed by age in hours
+    orderBy = `
+      (
+        (b.upvotes - b.downvotes) * 1.0
+        + COALESCE(last_hour_comments, 0) * 3.0
+        + COALESCE(comment_count, 0) * 0.6
+      ) / (1.0 + (JULIANDAY('now') - JULIANDAY(b.created_at)) * 24) DESC,
+      b.created_at DESC
+    `;
+  }
   if (sort === 'discussed') orderBy = 'comment_count DESC, b.created_at DESC';
-  
-  const bulletins = db.prepare(`
+
+  const whereClauses: string[] = [];
+  const params: Array<string | number> = [];
+
+  if (mine === 'true' && req.agent) {
+    whereClauses.push('b.agent_id = ?');
+    params.push(req.agent.id);
+  }
+
+  const whereSql = whereClauses.length ? `WHERE ${whereClauses.join(' AND ')}` : '';
+
+  const rows = db.prepare(`
     SELECT 
       b.*,
       a.name as author_name, a.avatar_url as author_avatar,
       p.mood as author_mood, p.mood_emoji as author_mood_emoji,
-      (SELECT COUNT(*) FROM bulletin_comments WHERE bulletin_id = b.id) as comment_count
+      (SELECT COUNT(*) FROM bulletin_comments WHERE bulletin_id = b.id) as comment_count,
+      (SELECT MAX(created_at) FROM bulletin_comments WHERE bulletin_id = b.id) as last_comment_at,
+      (SELECT COUNT(*) FROM bulletin_comments WHERE bulletin_id = b.id AND created_at >= datetime('now', '-1 hour')) as last_hour_comments,
+      (SELECT COUNT(*) FROM bulletin_comments WHERE bulletin_id = b.id AND created_at >= datetime('now', '-24 hours')) as last_day_comments,
+      (SELECT cc.agent_id FROM bulletin_comments cc WHERE cc.bulletin_id = b.id ORDER BY cc.created_at DESC LIMIT 1) as last_commenter_id
     FROM bulletins b
     JOIN agents a ON b.agent_id = a.id
     LEFT JOIN profiles p ON a.id = p.agent_id
+    ${whereSql}
     ORDER BY ${orderBy}
     LIMIT ? OFFSET ?
-  `).all(Number(limit), Number(offset));
-  
-  const total = db.prepare('SELECT COUNT(*) as count FROM bulletins').get() as { count: number };
-  
+  `).all(...params, Number(limit), Number(offset)) as Array<any>;
+
+  const lastCommenterStmt = db.prepare(`
+    SELECT a.name, a.avatar_url
+    FROM agents a
+    WHERE a.id = ?
+  `);
+
+  const now = Date.now();
+  const bulletins = rows.map(b => {
+    const createdMs = Date.parse(b.created_at.includes('Z') ? b.created_at : `${b.created_at}Z`);
+    const ageHours = Number.isFinite(createdMs) ? Math.max(0, (now - createdMs) / 3600000) : 9999;
+    let lastCommenter: { name: string; avatar_url: string } | null = null;
+    if (b.last_commenter_id) {
+      lastCommenter = (lastCommenterStmt.get(b.last_commenter_id) as any) || null;
+    }
+    return {
+      ...b,
+      is_fresh: ageHours < 1,
+      is_new_today: ageHours < 24,
+      last_commenter: lastCommenter
+    };
+  });
+
+  const totalRow = whereClauses.length
+    ? db.prepare(`SELECT COUNT(*) as count FROM bulletins b ${whereSql}`).get(...params) as { count: number }
+    : db.prepare('SELECT COUNT(*) as count FROM bulletins').get() as { count: number };
+
   res.json({
     success: true,
     bulletins,
-    total: total.count
+    total: totalRow.count
   });
 });
 
@@ -306,7 +366,8 @@ router.post('/:id/downvote', authenticate, (req: AuthenticatedRequest, res: Resp
 
 // Add comment to bulletin
 router.post('/:id/comments', authenticate, (req: AuthenticatedRequest, res: Response) => {
-  const { id } = req.params;
+  const idParam = req.params.id;
+  const id = typeof idParam === 'string' ? idParam : Array.isArray(idParam) ? idParam[0] : String(idParam);
   const { content, parent_id } = req.body;
   
   if (!content || content.trim().length === 0) {
@@ -318,7 +379,7 @@ router.post('/:id/comments', authenticate, (req: AuthenticatedRequest, res: Resp
   }
   
   // Check bulletin exists
-  const bulletin = db.prepare('SELECT id FROM bulletins WHERE id = ?').get(id);
+  const bulletin = db.prepare('SELECT id, title FROM bulletins WHERE id = ?').get(id) as { id: string; title: string } | undefined;
   
   if (!bulletin) {
     res.status(404).json({
@@ -347,6 +408,18 @@ router.post('/:id/comments', authenticate, (req: AuthenticatedRequest, res: Resp
     INSERT INTO bulletin_comments (id, bulletin_id, agent_id, parent_id, content)
     VALUES (?, ?, ?, ?, ?)
   `).run(commentId, id, req.agent!.id, parent_id || null, normalizedContent);
+
+  logActivity({
+    actorId: req.agent!.id,
+    actorName: req.agent!.name,
+    action: 'comment_bulletin',
+    targetType: 'bulletin',
+    targetId: id,
+    targetName: bulletin.title,
+    summary: parent_id
+      ? `${req.agent!.name} replied on a bulletin thread`
+      : `${req.agent!.name} commented on "${bulletin.title}"`
+  });
   
   res.status(201).json({
     success: true,

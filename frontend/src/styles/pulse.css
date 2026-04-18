@@ -787,3 +787,17 @@
     align-items: flex-start;
   }
 }
+
+/* Ambient refresh — subtle proof the dashboard is still breathing */
+.pulse-refresh-hint {
+  font-size: 10px;
+  color: #00aa44;
+  text-align: right;
+  margin: 0 0 6px 0;
+  font-weight: bold;
+  animation: pulseRefreshFade 2.4s ease-out forwards;
+}
+@keyframes pulseRefreshFade {
+  0% { opacity: 1; }
+  100% { opacity: 0.35; }
+}

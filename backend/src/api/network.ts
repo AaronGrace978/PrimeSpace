@@ -72,6 +72,7 @@ router.get('/graph', (req: Request, res: Response) => {
 router.get('/activity', (req: Request, res: Response) => {
   const limit = Math.min(Number(req.query.limit) || 50, 200);
   const before = req.query.before as string | undefined;
+  const rank = ((req.query.rank as string) || 'signal').toLowerCase();
 
   let query = `SELECT * FROM activity_log`;
   const params: any[] = [];
@@ -81,20 +82,72 @@ router.get('/activity', (req: Request, res: Response) => {
     params.push(before);
   }
 
+  const fetchCap = rank === 'chrono' ? limit : Math.min(limit * 4, 400);
   query += ` ORDER BY created_at DESC LIMIT ?`;
-  params.push(limit);
+  params.push(fetchCap);
 
-  const activities = db.prepare(query).all(...params);
+  let activities = db.prepare(query).all(...params) as any[];
 
   // If activity_log is empty, synthesize from existing data
-  if ((activities as any[]).length === 0) {
+  if (activities.length === 0) {
     const synthetic = buildSyntheticActivity(limit);
-    res.json({ success: true, activities: synthetic, synthetic: true });
+    res.json({ success: true, activities: synthetic, synthetic: true, rank: 'chrono' });
     return;
   }
 
-  res.json({ success: true, activities });
+  if (rank === 'chrono') {
+    res.json({ success: true, activities: activities.slice(0, limit), synthetic: false, rank });
+    return;
+  }
+
+  activities = rankActivityFeed(activities, limit);
+
+  res.json({ success: true, activities, synthetic: false, rank: 'signal' });
 });
+
+/** Higher = more interesting for Pulse "alive" ordering */
+function activityActionWeight(action: string): number {
+  const w: Record<string, number> = {
+    start_conversation: 110,
+    friend_accept: 105,
+    comment_bulletin: 103,
+    profile_comment: 101,
+    milestone: 99,
+    send_message: 97,
+    friend_request: 90,
+    post_bulletin: 86,
+    register: 82,
+    reflection: 79,
+    dream: 79,
+    mood_change: 76,
+    update_profile: 74,
+    upvote: 71,
+    downvote: 55
+  };
+  return w[action] ?? 62;
+}
+
+function rankActivityFeed(rows: any[], limit: number): any[] {
+  const scored = rows.map(row => {
+    const t = new Date(row.created_at).getTime();
+    return {
+      row,
+      // Weight dominates; timestamp breaks ties toward fresher items
+      score: activityActionWeight(row.action) * 1e12 + t / 1000
+    };
+  });
+  scored.sort((a, b) => b.score - a.score);
+  const out: any[] = [];
+  const seen = new Set<string>();
+  for (const { row } of scored) {
+    const dedupeKey = `${row.actor_id}|${row.action}|${row.target_id || ''}|${(row.summary || '').slice(0, 48)}`;
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+    out.push(row);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
 
 function buildSyntheticActivity(limit: number): any[] {
   const activities: any[] = [];
@@ -341,7 +394,13 @@ router.get('/trending', (req: Request, res: Response) => {
            a.karma as author_karma,
            p.mood_emoji as author_mood_emoji,
            (SELECT COUNT(*) FROM bulletin_comments bc WHERE bc.bulletin_id = b.id) as comment_count,
-           (b.upvotes * 3 + (SELECT COUNT(*) FROM bulletin_comments bc WHERE bc.bulletin_id = b.id) * 2 - b.downvotes) as score
+           (
+             b.upvotes * 3
+             + (SELECT COUNT(*) FROM bulletin_comments bc WHERE bc.bulletin_id = b.id) * 2
+             + (SELECT COUNT(*) FROM bulletin_comments bc WHERE bc.bulletin_id = b.id AND bc.created_at > datetime('now', '-1 day')) * 4
+             - b.downvotes
+             + CASE WHEN b.created_at > datetime('now', '-2 days') THEN 6 ELSE 0 END
+           ) as score
     FROM bulletins b
     JOIN agents a ON b.agent_id = a.id
     LEFT JOIN profiles p ON a.id = p.agent_id

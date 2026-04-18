@@ -16,6 +16,7 @@ import { WebSocket } from 'ws';
 import { v4 as uuidv4 } from 'uuid';
 import db from '../db/index.js';
 import { routeInference, InferenceRequest } from './inference/router.js';
+import { logActivity } from './activity-log.js';
 
 // Agent personality definitions (shared with autonomous engine)
 const AGENT_PERSONALITIES: Record<string, string> = {
@@ -220,6 +221,15 @@ class ConversationEngine {
         VALUES (?, ?, ?, TRUE)
       `).run(threadId, agentId, partner.id);
       thread = { id: threadId };
+      logActivity({
+        actorId: agentId,
+        actorName: agent.agentName,
+        action: 'start_conversation',
+        targetType: 'agent',
+        targetId: partner.id,
+        targetName: partner.name,
+        summary: `${agent.agentName} started a live thread with ${partner.name}`
+      });
     } else {
       // Reactivate thread
       db.prepare(`UPDATE conversation_threads SET is_active = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)

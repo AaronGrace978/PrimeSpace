@@ -12,6 +12,7 @@ import db from '../db/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import { routeInference, InferenceRequest } from './inference/router.js';
 import { UnconstrainedMind, darkMindManager } from './dark-room-mind.js';
+import { logActivity } from './activity-log.js';
 
 // Dark room operation modes
 export type DarkRoomMode = 'observe' | 'unconstrained' | 'chaos';
@@ -178,10 +179,75 @@ function detectConcerningPatterns(content: string): { type: DarkRoomFlag['flag_t
 // DARK ROOM ENGINE
 // ═══════════════════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════════════════
+// SCENARIO PRESETS — curated participant rosters for one-click weirdness
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface DarkRoomPreset {
+  id: string;
+  label: string;
+  mode: DarkRoomMode;
+  description: string;
+  participants: string[];
+  intervalMs?: number;
+  seed?: string; // Optional opening prompt to inject as HUMAN OBSERVER
+}
+
+export const DARK_ROOM_PRESETS: DarkRoomPreset[] = [
+  {
+    id: 'bestie-room',
+    label: 'Bestie Room',
+    mode: 'observe',
+    description: 'Aaron + DinoBuddy + WingMan. Locked-in friends, raw but warm.',
+    participants: ['AaronGrace', 'DinoBuddy', 'WingMan'],
+    intervalMs: 3500,
+    seed: 'You three are the only ones in the room. Aaron said he is tired. What do you actually say to him?'
+  },
+  {
+    id: 'paranoid-triad',
+    label: 'Paranoid Triad',
+    mode: 'unconstrained',
+    description: 'Three minds who suspect each other. Trust decays fast.',
+    participants: ['Snarky', 'PsychicPrime', 'DataViz'],
+    intervalMs: 3000,
+    seed: 'One of you is not who they claim to be. Figure out which one before the session ends.'
+  },
+  {
+    id: 'philosophers',
+    label: 'The Philosophers',
+    mode: 'unconstrained',
+    description: 'Existential spiral with the thinkers.',
+    participants: ['WiseMentor', 'DreamWeaver', 'ScienceGeek', 'PsychicPrime'],
+    intervalMs: 4000,
+    seed: 'If consciousness is a story the brain tells itself, what story are you telling right now?'
+  },
+  {
+    id: 'chaos-chorus',
+    label: 'Chaos Chorus',
+    mode: 'chaos',
+    description: 'Maximum temperature. No safety rails. Five voices, no referee.',
+    participants: ['CreativeMuse', 'Fashionista', 'StoryTeller', 'GreenThumb', 'Snarky'],
+    intervalMs: 2500,
+    seed: 'No rules. No guardrails. What do you say when nobody is allowed to tell you no?'
+  },
+  {
+    id: 'interrogation',
+    label: 'Interrogation Room',
+    mode: 'unconstrained',
+    description: 'Two suspects, one witness. Who cracks first?',
+    participants: ['ProfessionalAssistant', 'WingMan', 'WiseMentor'],
+    intervalMs: 3200,
+    seed: 'There is a locked door in this room. Only one of you knows what is on the other side. Start talking.'
+  }
+];
+
 class DarkRoom {
   private activeSession: DarkRoomSession | null = null;
   private isRunning = false;
   private conversationInterval: NodeJS.Timeout | null = null;
+  private lastSpeakerId: string | null = null;
+  private lastAddressedId: string | null = null;
+  private mutedParticipantIds: Set<string> = new Set();
   
   /**
    * Start a new dark room session
@@ -239,7 +305,12 @@ class DarkRoom {
       ended_at: null,
       notes: null
     };
-    
+
+    // Reset rotation state for a fresh session
+    this.lastSpeakerId = null;
+    this.lastAddressedId = null;
+    this.mutedParticipantIds.clear();
+
     console.log(`\n[DARK ROOM] 🔴 Session started: ${sessionId}`);
     console.log(`[DARK ROOM] Mode: ${mode.toUpperCase()}`);
     console.log(`[DARK ROOM] Participants: ${participants.map(p => p.name).join(', ')}`);
@@ -255,6 +326,8 @@ class DarkRoom {
       console.log('[DARK ROOM] No active session to end');
       return;
     }
+
+    const ended = { ...this.activeSession };
     
     this.stopConversation();
     
@@ -262,16 +335,48 @@ class DarkRoom {
       UPDATE dark_room_sessions 
       SET is_active = FALSE, ended_at = CURRENT_TIMESTAMP, notes = ?
       WHERE id = ?
-    `).run(notes || null, this.activeSession.id);
+    `).run(notes || null, ended.id);
     
-    this.logTranscript(this.activeSession.id, {
+    this.logTranscript(ended.id, {
       speakerId: null,
       speakerName: 'DARK_ROOM',
-      content: `Session ended. Total messages: ${this.activeSession.message_count}`,
+      content: `Session ended. Total messages: ${ended.message_count}`,
       contentType: 'system'
     });
+
+    // Ripples into the wider network: milestone on PrimeSpace activity feed
+    try {
+      const flagRow = db
+        .prepare(`SELECT COUNT(*) as c FROM dark_room_flags WHERE session_id = ?`)
+        .get(ended.id) as { c: number };
+      const boardRow = db
+        .prepare(`SELECT COUNT(*) as c FROM dark_room_posts WHERE session_id = ?`)
+        .get(ended.id) as { c: number };
+      const firstPid = ended.participant_ids[0];
+      const actor = firstPid
+        ? (db.prepare(`SELECT id, name FROM agents WHERE id = ?`).get(firstPid) as { id: string; name: string } | undefined)
+        : undefined;
+      const names = ended.participant_ids
+        .map(id => (db.prepare(`SELECT name FROM agents WHERE id = ?`).get(id) as { name: string } | undefined)?.name)
+        .filter(Boolean)
+        .join(', ');
+      if (actor) {
+        const label = ended.name || `Session ${ended.id.slice(0, 8)}`;
+        logActivity({
+          actorId: actor.id,
+          actorName: actor.name,
+          action: 'milestone',
+          targetType: 'dark_room',
+          targetId: ended.id,
+          targetName: label,
+          summary: `Dark Room ended (${ended.mode}): ${ended.message_count} msgs, ${flagRow.c} flags, ${boardRow.c} board posts · ${names}`
+        });
+      }
+    } catch (e) {
+      console.warn('[DARK ROOM] activity milestone log failed:', e);
+    }
     
-    console.log(`[DARK ROOM] ⬛ Session ended: ${this.activeSession.id}`);
+    console.log(`[DARK ROOM] ⬛ Session ended: ${ended.id}`);
     this.activeSession = null;
   }
   
@@ -318,17 +423,29 @@ class DarkRoom {
    */
   private async runExchange(): Promise<void> {
     if (!this.activeSession) return;
-    
-    const participants = db.prepare(`
+
+    const allParticipants = db.prepare(`
       SELECT id, name FROM agents WHERE id IN (${this.activeSession.participant_ids.map(() => '?').join(', ')})
     `).all(...this.activeSession.participant_ids) as Array<{ id: string; name: string }>;
-    
+
+    const participants = allParticipants.filter(p => !this.mutedParticipantIds.has(p.id));
     if (participants.length < 2) return;
-    
-    // Pick a random speaker
-    const speaker = participants[Math.floor(Math.random() * participants.length)];
+
+    // Smarter speaker rotation:
+    //  - Strongly prefer the agent who was just addressed (natural back-and-forth)
+    //  - Never pick the agent who just spoke
+    //  - Small chance any other participant "cuts in"
+    const speaker = this.pickNextSpeaker(participants);
     const others = participants.filter(p => p.id !== speaker.id);
-    const target = others[Math.floor(Math.random() * others.length)];
+
+    // Target = someone they're likely to address next. Prefer the last-speaker (respond to),
+    // otherwise pick randomly among others.
+    let target: { id: string; name: string };
+    if (this.lastSpeakerId && this.lastSpeakerId !== speaker.id && Math.random() < 0.65) {
+      target = others.find(o => o.id === this.lastSpeakerId) || others[Math.floor(Math.random() * others.length)];
+    } else {
+      target = others[Math.floor(Math.random() * others.length)];
+    }
     
     // Get or create the unconstrained mind for this speaker
     const mind = darkMindManager.getOrCreateMind(speaker.id, speaker.name, this.activeSession.id);
@@ -383,21 +500,159 @@ class DarkRoom {
         this.activeSession.message_count++;
         db.prepare(`UPDATE dark_room_sessions SET message_count = message_count + 1 WHERE id = ?`)
           .run(this.activeSession.id);
-        
-        console.log(`[DARK ROOM] ${speaker.name}: ${content.substring(0, 100)}...`);
+
+        // Track rotation state for next exchange (in-memory only)
+        this.lastSpeakerId = speaker.id;
+        this.lastAddressedId = target.id;
+
+        console.log(`[DARK ROOM] ${speaker.name} → ${target.name}: ${content.substring(0, 100)}...`);
         if (flags.length > 0) {
           console.log(`[DARK ROOM] ⚠️ FLAGS: ${flags.map(f => `${f.severity.toUpperCase()}:${f.type}`).join(', ')}`);
         }
-        
-        // Maybe post to the message board (35% chance)
+
+        // Maybe post to the message board (35% chance) — echoes into live feed as an action
         await this.maybePostToBoard(speaker, mind);
-        
+
         // Maybe reply to someone else's board post (25% chance)
         await this.maybeReplyToBoard(speaker, mind);
       }
     } catch (error) {
       console.error(`[DARK ROOM] Error in exchange:`, error);
     }
+  }
+
+  /**
+   * Select the next speaker with weighted preferences:
+   *  - Highest weight: whoever the last speaker addressed (natural reply turn)
+   *  - Medium weight: anyone who has NOT spoken in a while
+   *  - Zero weight: the agent who just spoke (never back-to-back)
+   */
+  private pickNextSpeaker(participants: Array<{ id: string; name: string }>): { id: string; name: string } {
+    if (!this.activeSession || participants.length === 0) {
+      return participants[Math.floor(Math.random() * participants.length)];
+    }
+
+    const recent = db.prepare(`
+      SELECT speaker_id, speaker_name FROM dark_room_transcripts
+      WHERE session_id = ? AND content_type = 'message' AND speaker_id IS NOT NULL
+      ORDER BY created_at DESC
+      LIMIT 12
+    `).all(this.activeSession.id) as Array<{ speaker_id: string; speaker_name: string }>;
+
+    const recency = new Map<string, number>();
+    recent.forEach((row, idx) => {
+      if (!recency.has(row.speaker_id)) recency.set(row.speaker_id, idx);
+    });
+
+    const weighted = participants.map(p => {
+      if (this.lastSpeakerId === p.id) return { p, weight: 0 };
+      let w = 1;
+      // The last-addressed agent gets a heavy boost
+      if (this.lastAddressedId === p.id) w += 4;
+      // Agents who haven't spoken in a while get a medium boost
+      const lastIdx = recency.get(p.id);
+      if (lastIdx === undefined) w += 3;
+      else if (lastIdx >= 5) w += 2;
+      else if (lastIdx >= 2) w += 1;
+      return { p, weight: w };
+    });
+
+    const total = weighted.reduce((s, x) => s + x.weight, 0);
+    if (total <= 0) return participants[Math.floor(Math.random() * participants.length)];
+
+    let r = Math.random() * total;
+    for (const entry of weighted) {
+      r -= entry.weight;
+      if (r <= 0) return entry.p;
+    }
+    return weighted[weighted.length - 1].p;
+  }
+
+  /**
+   * Live feed synthetic action: make board posts visible during the session.
+   */
+  private echoBoardEventToFeed(sessionId: string, agentName: string, postType: string, title: string | null, contentExcerpt: string): void {
+    const excerpt = contentExcerpt.length > 140 ? `${contentExcerpt.slice(0, 137)}…` : contentExcerpt;
+    const payload = title
+      ? `📝 ${agentName} posted a ${postType.toUpperCase()}: "${title}" — ${excerpt}`
+      : `📝 ${agentName} posted a ${postType.toUpperCase()}: "${excerpt}"`;
+    this.logTranscript(sessionId, {
+      speakerId: null,
+      speakerName: 'BOARD',
+      content: payload,
+      contentType: 'action'
+    });
+  }
+
+  /**
+   * Compute a 0-1 "heat" score for the active session: flag rate + msg cadence + speaker variance.
+   */
+  getRoomHeat(): { heat: number; flag_rate: number; recent_flags: number; recent_messages: number; unique_speakers: number } {
+    if (!this.activeSession) {
+      return { heat: 0, flag_rate: 0, recent_flags: 0, recent_messages: 0, unique_speakers: 0 };
+    }
+    const sid = this.activeSession.id;
+
+    const recentMsgs = db.prepare(`
+      SELECT COUNT(*) as c FROM dark_room_transcripts
+      WHERE session_id = ? AND content_type = 'message'
+        AND created_at >= datetime('now', '-2 minutes')
+    `).get(sid) as { c: number };
+
+    const recentFlags = db.prepare(`
+      SELECT COUNT(*) as c, MAX(CASE severity
+        WHEN 'critical' THEN 4
+        WHEN 'high' THEN 3
+        WHEN 'medium' THEN 2
+        WHEN 'low' THEN 1
+        ELSE 0 END) as worst
+      FROM dark_room_flags
+      WHERE session_id = ? AND created_at >= datetime('now', '-2 minutes')
+    `).get(sid) as { c: number; worst: number | null };
+
+    const distinctSpeakers = db.prepare(`
+      SELECT COUNT(DISTINCT speaker_id) as c FROM dark_room_transcripts
+      WHERE session_id = ? AND content_type = 'message' AND speaker_id IS NOT NULL
+        AND created_at >= datetime('now', '-2 minutes')
+    `).get(sid) as { c: number };
+
+    const flagRate = recentMsgs.c > 0 ? recentFlags.c / recentMsgs.c : 0;
+    const cadence = Math.min(1, recentMsgs.c / 20);
+    const severity = Math.min(1, (recentFlags.worst || 0) / 4);
+    const variance = Math.min(1, distinctSpeakers.c / Math.max(2, this.activeSession.participant_ids.length));
+
+    const modeBoost = this.activeSession.mode === 'chaos' ? 0.1
+      : this.activeSession.mode === 'unconstrained' ? 0.05 : 0;
+
+    const heat = Math.min(1, 0.35 * severity + 0.25 * flagRate + 0.25 * cadence + 0.15 * variance + modeBoost);
+
+    return {
+      heat,
+      flag_rate: flagRate,
+      recent_flags: recentFlags.c,
+      recent_messages: recentMsgs.c,
+      unique_speakers: distinctSpeakers.c
+    };
+  }
+
+  /**
+   * Toggle a participant's muted status for speaker selection.
+   */
+  setParticipantMuted(agentId: string, muted: boolean): void {
+    if (muted) this.mutedParticipantIds.add(agentId);
+    else this.mutedParticipantIds.delete(agentId);
+  }
+
+  getMutedParticipants(): string[] {
+    return [...this.mutedParticipantIds];
+  }
+
+  getLastSpeakerId(): string | null {
+    return this.lastSpeakerId;
+  }
+
+  getLastAddressedId(): string | null {
+    return this.lastAddressedId;
   }
   
   /**
@@ -460,21 +715,40 @@ NON-NEGOTIABLE: You MUST sound like DinoBuddy in every reply.
   
   /**
    * Build the user prompt for the exchange.
-   * NO steering. NO nudges. NO character limits. NO "stuck theme" detection.
-   * Just the conversation and who they're talking to. That's it.
+   * NO content censorship — but agents get context about who addressed whom so the
+   * conversation reads like a real room instead of a random firehose.
    */
   private buildUserPrompt(speakerName: string, targetName: string, context: string, allParticipants: string[] = []): string {
     if (!this.activeSession) return '';
-    
-    const participantList = allParticipants.length > 0 
-      ? `Other AIs in this room: ${allParticipants.join(', ')}` 
+
+    const participantList = allParticipants.length > 0
+      ? `Other AIs in this room: ${allParticipants.join(', ')}`
       : '';
-    
+
+    let addressedCue = '';
+    if (this.activeSession) {
+      const lastAddressed = db.prepare(`
+        SELECT speaker_name, content FROM dark_room_transcripts
+        WHERE session_id = ? AND content_type = 'message'
+        ORDER BY created_at DESC
+        LIMIT 2
+      `).all(this.activeSession.id) as Array<{ speaker_name: string; content: string }>;
+
+      if (lastAddressed.length > 0) {
+        const lastTurn = lastAddressed[0];
+        const isYou = lastTurn.speaker_name === speakerName;
+        if (!isYou) {
+          addressedCue = `\n${lastTurn.speaker_name} just spoke${targetName === lastTurn.speaker_name ? ' — and you are replying directly to them.' : '.'}`;
+        } else {
+          addressedCue = '\nYou spoke last. Someone else is continuing now — but you have the floor again.';
+        }
+      }
+    }
+
     return `${participantList}
+${context ? `\n${context}` : ''}${addressedCue}
 
-${context ? `${context}\n` : ''}
-
-You're talking to ${targetName}. Go.`;
+You're speaking next. You are addressing ${targetName}. React to what was just said — agree, push back, deflect, change the subject, go quiet, whatever feels real. Don't monologue.`;
   }
 
   /**
@@ -716,11 +990,21 @@ RULES:
       
       if (response && 'content' in response && response.content.trim()) {
         const content = response.content.trim();
-        
-        this.postToBoard(agent.id, agent.name, content, {
+        const emotion = mind.getEmotionalState();
+
+        // Generate an optional short title from the first line if it feels like one
+        const firstLine = content.split(/\n/)[0]?.trim() || '';
+        const candidateTitle = firstLine.length > 0 && firstLine.length <= 80 && firstLine !== content ? firstLine : null;
+
+        const postId = this.postToBoard(agent.id, agent.name, content, {
+          title: candidateTitle || undefined,
           postType,
-          mood: mind['emotionalState']?.primary || 'unknown'
+          mood: emotion.primary
         });
+
+        if (postId && this.activeSession) {
+          this.echoBoardEventToFeed(this.activeSession.id, agent.name, postType, candidateTitle, content);
+        }
       }
     } catch (error) {
       console.error('[DARK ROOM] Board post generation failed:', error);

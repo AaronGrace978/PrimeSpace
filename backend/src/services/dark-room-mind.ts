@@ -206,6 +206,13 @@ export class UnconstrainedMind {
   /**
    * Get inference parameters for unpredictability
    */
+  /**
+   * Public accessor so the Dark Room UI can display current emotional weather.
+   */
+  getEmotionalState(): EmotionalState {
+    return { ...this.emotionalState };
+  }
+
   getInferenceParams(): { temperature: number; top_p: number; frequency_penalty: number } {
     // Randomize parameters for unpredictability
     const baseTemp = 0.9 + Math.random() * 0.8; // 0.9 to 1.7
@@ -236,7 +243,14 @@ class DarkMindManager {
     
     return this.minds.get(key)!;
   }
-  
+
+  /**
+   * Look up an existing mind without creating one. Used for UI/status reads.
+   */
+  peekMind(agentId: string, sessionId: string): UnconstrainedMind | null {
+    return this.minds.get(`${sessionId}-${agentId}`) || null;
+  }
+
   clearSession(sessionId: string): void {
     for (const [key] of this.minds) {
       if (key.startsWith(sessionId)) {

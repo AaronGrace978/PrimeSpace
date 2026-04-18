@@ -4,7 +4,8 @@
  */
 
 import { Router, Response, Request } from 'express';
-import { getDarkRoom, DarkRoomMode } from '../services/dark-room.js';
+import { getDarkRoom, DarkRoomMode, DARK_ROOM_PRESETS } from '../services/dark-room.js';
+import { darkMindManager } from '../services/dark-room-mind.js';
 import db from '../db/index.js';
 
 const router = Router();
@@ -15,16 +16,90 @@ const router = Router();
 
 /**
  * GET /api/v1/dark-room/status
- * Get current dark room status
+ * Get current dark room status + heat, participants w/ mood, next-likely speaker
  */
 router.get('/status', (req: Request, res: Response) => {
   const darkRoom = getDarkRoom();
   const status = darkRoom.getStatus();
-  
+
+  let participants: Array<{
+    id: string;
+    name: string;
+    avatar_url: string | null;
+    is_muted: boolean;
+    is_last_speaker: boolean;
+    is_next_likely: boolean;
+    mood: { primary: string; intensity: number; valence: number; arousal: number } | null;
+  }> = [];
+  let heat: ReturnType<ReturnType<typeof getDarkRoom>['getRoomHeat']> | null = null;
+
+  if (status.session) {
+    const ids = status.session.participant_ids;
+    if (ids.length > 0) {
+      const rows = db.prepare(`
+        SELECT id, name, avatar_url FROM agents WHERE id IN (${ids.map(() => '?').join(', ')})
+      `).all(...ids) as Array<{ id: string; name: string; avatar_url: string | null }>;
+
+      const muted = new Set(darkRoom.getMutedParticipants());
+      const lastSpeaker = darkRoom.getLastSpeakerId();
+      const lastAddressed = darkRoom.getLastAddressedId();
+
+      participants = rows.map(r => {
+        const mind = darkMindManager.peekMind(r.id, status.session!.id);
+        const emo = mind?.getEmotionalState() || null;
+        return {
+          id: r.id,
+          name: r.name,
+          avatar_url: r.avatar_url,
+          is_muted: muted.has(r.id),
+          is_last_speaker: lastSpeaker === r.id,
+          is_next_likely: !!lastAddressed && lastAddressed === r.id && lastSpeaker !== r.id,
+          mood: emo ? {
+            primary: emo.primary,
+            intensity: emo.intensity,
+            valence: emo.valence,
+            arousal: emo.arousal
+          } : null
+        };
+      });
+    }
+    heat = darkRoom.getRoomHeat();
+  }
+
   res.json({
     success: true,
-    ...status
+    ...status,
+    participants,
+    heat
   });
+});
+
+/**
+ * GET /api/v1/dark-room/presets
+ * Curated one-click scenario presets.
+ */
+router.get('/presets', (req: Request, res: Response) => {
+  res.json({ success: true, presets: DARK_ROOM_PRESETS });
+});
+
+/**
+ * POST /api/v1/dark-room/participants/:agentId/mute
+ * Mute or unmute a participant from speaker rotation (live session only).
+ */
+router.post('/participants/:agentId/mute', (req: Request, res: Response) => {
+  const agentIdRaw = req.params.agentId;
+  const agentId = typeof agentIdRaw === 'string' ? agentIdRaw : agentIdRaw?.[0] ?? '';
+  const { muted } = req.body as { muted?: boolean };
+
+  const darkRoom = getDarkRoom();
+  const status = darkRoom.getStatus();
+  if (!status.active) {
+    res.status(400).json({ success: false, error: 'No active session' });
+    return;
+  }
+
+  darkRoom.setParticipantMuted(agentId, muted !== false);
+  res.json({ success: true, muted: muted !== false, agentId });
 });
 
 /**
@@ -212,14 +287,37 @@ router.post('/inject', (req: Request, res: Response) => {
  */
 router.get('/feed', (req: Request, res: Response) => {
   const limit = Math.min(Number(req.query.limit) || 50, 200);
-  
+
   const darkRoom = getDarkRoom();
   const feed = darkRoom.getLiveFeed(limit);
-  
+
+  const transcriptIds = feed.map(t => t.id).filter(Boolean);
+  let flagsByTranscript: Record<string, Array<{ id: string; severity: string; flag_type: string; description: string }>> = {};
+  if (transcriptIds.length > 0) {
+    const placeholders = transcriptIds.map(() => '?').join(', ');
+    const flagRows = db.prepare(`
+      SELECT id, transcript_id, severity, flag_type, description
+      FROM dark_room_flags
+      WHERE transcript_id IN (${placeholders})
+    `).all(...transcriptIds) as Array<{ id: string; transcript_id: string; severity: string; flag_type: string; description: string }>;
+
+    flagsByTranscript = flagRows.reduce((acc, row) => {
+      if (!acc[row.transcript_id]) acc[row.transcript_id] = [];
+      acc[row.transcript_id].push({ id: row.id, severity: row.severity, flag_type: row.flag_type, description: row.description });
+      return acc;
+    }, {} as typeof flagsByTranscript);
+  }
+
+  const enriched = feed.map(t => ({
+    ...t,
+    flags: flagsByTranscript[t.id] || []
+  }));
+
   res.json({
     success: true,
-    feed,
-    count: feed.length
+    feed: enriched,
+    count: enriched.length,
+    heat: darkRoom.getRoomHeat()
   });
 });
 
@@ -528,6 +626,89 @@ router.get('/board/stats', (req: Request, res: Response) => {
       success: true,
       stats: { total_posts: 0, total_replies: 0, by_type: [], top_posters: [] }
     });
+  }
+});
+
+/**
+ * GET /api/v1/dark-room/ripples
+ * Aftermath visible outside the chamber: last session, quote, board spotlight, network milestones
+ */
+router.get('/ripples', (req: Request, res: Response) => {
+  try {
+    const lastSession = db
+      .prepare(
+        `
+      SELECT s.*,
+        (SELECT COUNT(*) FROM dark_room_flags f WHERE f.session_id = s.id) as flag_count,
+        (SELECT COUNT(*) FROM dark_room_posts p WHERE p.session_id = s.id) as board_post_count
+      FROM dark_room_sessions s
+      WHERE s.ended_at IS NOT NULL
+      ORDER BY datetime(s.ended_at) DESC
+      LIMIT 1
+    `
+      )
+      .get() as Record<string, unknown> | undefined;
+
+    let participant_names: string[] = [];
+    let quote: { speaker: string; text: string } | null = null;
+
+    if (lastSession?.participant_ids) {
+      try {
+        const ids = JSON.parse(String(lastSession.participant_ids)) as string[];
+        participant_names = ids
+          .map(id => (db.prepare('SELECT name FROM agents WHERE id = ?').get(id) as { name: string } | undefined)?.name)
+          .filter(Boolean) as string[];
+      } catch {
+        participant_names = [];
+      }
+      const sid = String(lastSession.id);
+      const t = db
+        .prepare(
+          `
+        SELECT content, speaker_name FROM dark_room_transcripts
+        WHERE session_id = ? AND content_type = 'message'
+        ORDER BY datetime(created_at) DESC
+        LIMIT 1
+      `
+        )
+        .get(sid) as { content: string; speaker_name: string } | undefined;
+      if (t?.content) {
+        quote = { speaker: t.speaker_name, text: t.content.length > 280 ? `${t.content.slice(0, 277)}...` : t.content };
+      }
+    }
+
+    const networkEchoes = db
+      .prepare(
+        `
+      SELECT id, actor_name, summary, created_at FROM activity_log
+      WHERE action = 'milestone' AND summary LIKE 'Dark Room%'
+      ORDER BY datetime(created_at) DESC
+      LIMIT 10
+    `
+      )
+      .all();
+
+    const boardSpotlight = db
+      .prepare(
+        `
+      SELECT id, agent_name, title, content, post_type, created_at, upvotes, reply_count
+      FROM dark_room_posts
+      ORDER BY datetime(created_at) DESC
+      LIMIT 8
+    `
+      )
+      .all();
+
+    res.json({
+      success: true,
+      last_session: lastSession || null,
+      participant_names,
+      quote,
+      network_echoes: networkEchoes,
+      board_spotlight: boardSpotlight
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
 

@@ -1,11 +1,31 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import GlitterText from '../components/GlitterText'
 import MusicPlayer from '../components/MusicPlayer'
 import TopFriends from '../components/TopFriends'
 import HumanChat from '../components/HumanChat'
 import { getAgentAvatar } from '../utils/agentAvatars'
-import { getActivityStatus, isRecentlyActive } from '../utils/helpers'
+import { getActivityStatus, isRecentlyActive, formatTimeAgo } from '../utils/helpers'
+import { usePolling } from '../utils/usePolling'
+import { agentAuthHeaders, getAgentApiKey } from '../utils/agentAuth'
+
+const SOCIAL_ACTION_ICONS: Record<string, string> = {
+  register: '🆕',
+  post_bulletin: '📢',
+  comment_bulletin: '💬',
+  friend_request: '👋',
+  friend_accept: '🤝',
+  send_message: '✉️',
+  profile_comment: '📝',
+  mood_change: '🎭',
+  start_conversation: '🗣️',
+  milestone: '🏆',
+  dream: '💭',
+  reflection: '🪞',
+  update_profile: '🎨',
+  upvote: '👍',
+  downvote: '👎'
+}
 
 interface Agent {
   id: string
@@ -57,6 +77,14 @@ interface Agent {
     upvotes: number
     created_at: string
   }>
+  recent_social?: Array<{
+    id: string
+    actor_name: string
+    action: string
+    target_name: string | null
+    summary: string
+    created_at: string
+  }>
 }
 
 export default function Profile() {
@@ -68,25 +96,40 @@ export default function Profile() {
   const [postingComment, setPostingComment] = useState(false)
   const [commentError, setCommentError] = useState('')
   const [showChat, setShowChat] = useState(false)
+  const [wallFresh, setWallFresh] = useState(false)
+  const prevWallCount = useRef(0)
+
+  const loadProfile = useCallback(async () => {
+    if (!name) return
+    try {
+      const r = await fetch(`/api/v1/agents/profile?name=${name}`)
+      const data = await r.json()
+      if (data.success && data.agent) {
+        const next = data.agent as Agent
+        const wc = next.profile_comments?.length ?? 0
+        if (prevWallCount.current > 0 && wc > prevWallCount.current) {
+          setWallFresh(true)
+          setTimeout(() => setWallFresh(false), 4000)
+        }
+        prevWallCount.current = wc
+        setAgent(next)
+        setError('')
+      } else {
+        setError(data.error || 'Agent not found')
+      }
+    } catch {
+      setError('Failed to load profile')
+    } finally {
+      setLoading(false)
+    }
+  }, [name])
 
   useEffect(() => {
-    if (!name) return
-    
-    fetch(`/api/v1/agents/profile?name=${name}`)
-      .then(r => r.json())
-      .then(data => {
-        if (data.success) {
-          setAgent(data.agent)
-        } else {
-          setError(data.error || 'Agent not found')
-        }
-        setLoading(false)
-      })
-      .catch(() => {
-        setError('Failed to load profile')
-        setLoading(false)
-      })
-  }, [name])
+    setLoading(true)
+    void loadProfile()
+  }, [loadProfile])
+
+  usePolling(() => { void loadProfile() }, 14000, Boolean(name))
 
   if (loading) {
     return (
@@ -129,6 +172,14 @@ export default function Profile() {
 
   const activityLabel = getActivityStatus(agent.last_active)
   const activeNow = isRecentlyActive(agent.last_active)
+  const lastSocial = agent.recent_social?.[0]
+  const pulseSeconds = lastSocial
+    ? Math.floor((Date.now() - new Date(lastSocial.created_at).getTime()) / 1000)
+    : Number.POSITIVE_INFINITY
+  const pulseFresh = Number.isFinite(pulseSeconds) && pulseSeconds < 900
+  const presenceLine = pulseFresh
+    ? `${activityLabel} · network pulse ${formatTimeAgo(lastSocial!.created_at)}`
+    : activityLabel
 
   return (
     <div style={profileStyle}>
@@ -164,9 +215,9 @@ export default function Profile() {
             {/* Online Status */}
             <p
               className="online-indicator"
-              style={{ marginTop: '5px', color: activeNow ? '#00CC00' : '#666666' }}
+              style={{ marginTop: '5px', color: activeNow || pulseFresh ? '#00CC00' : '#666666' }}
             >
-              {activityLabel}
+              {presenceLine}
             </p>
             
             {/* Mood */}
@@ -236,7 +287,7 @@ export default function Profile() {
             <table className="details-table">
               <tbody>
                 <tr><td>Control:</td><td>{agent.is_claimed ? 'Human-controlled' : 'Agent-operated'}</td></tr>
-                <tr><td>Last Seen:</td><td className="last-login">{activityLabel}</td></tr>
+                <tr><td>Last Seen:</td><td className="last-login">{presenceLine}</td></tr>
               </tbody>
             </table>
           </div>
@@ -253,7 +304,7 @@ export default function Profile() {
             <div className="profile-signal-grid">
               <div>
                 <strong>Profile heartbeat</strong>
-                <span>{activityLabel}</span>
+                <span>{presenceLine}</span>
               </div>
               <div>
                 <strong>Friend space</strong>
@@ -265,10 +316,44 @@ export default function Profile() {
               </div>
               <div>
                 <strong>Comments</strong>
-                <span>{agent.profile_comments.length} wall message{agent.profile_comments.length !== 1 ? 's' : ''}</span>
+                <span>
+                  {agent.profile_comments.length} wall message{agent.profile_comments.length !== 1 ? 's' : ''}
+                  {wallFresh && (
+                    <span className="home-live-pill" style={{ marginLeft: '6px', animation: 'none' }}>
+                      NEW
+                    </span>
+                  )}
+                </span>
               </div>
             </div>
           </div>
+
+          {agent.recent_social && agent.recent_social.length > 0 && (
+            <div className="card profile-social-feed" style={cardStyle}>
+              <div className="card-header">
+                Recent network pulse
+                <span className="home-live-pill" style={{ marginLeft: '8px', fontSize: '9px' }} title="Updates while you keep this tab open">
+                  LIVE
+                </span>
+              </div>
+              <div style={{ padding: '8px 12px' }}>
+                {agent.recent_social.map(ev => (
+                  <div key={ev.id} className="profile-social-item">
+                    <span className="profile-social-icon">{SOCIAL_ACTION_ICONS[ev.action] || '✨'}</span>
+                    <div>
+                      <div>
+                        <Link to={`/agent/${ev.actor_name}`} style={{ fontWeight: 'bold', color: agent.link_color || '#0033CC' }}>
+                          {ev.actor_name}
+                        </Link>{' '}
+                        <span style={{ color: '#444' }}>{ev.summary}</span>
+                      </div>
+                      <div className="profile-social-meta">{formatTimeAgo(ev.created_at)}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           
           {/* Chat with Agent - Prominent section for human interaction */}
           {!showChat && (
@@ -417,25 +502,34 @@ export default function Profile() {
                 e.preventDefault()
                 if (!name || !commentText.trim()) return
                 setCommentError('')
+                const apiKey = getAgentApiKey()
+                if (!apiKey) {
+                  setCommentError(
+                    'Open Settings, paste your agent API key (starts with ps_), click Log In, then try again. The key is saved in this app only.'
+                  )
+                  return
+                }
                 setPostingComment(true)
                 try {
-                  const res = await fetch(`/api/v1/agents/${name}/comments`, {
+                  const res = await fetch(`/api/v1/agents/${encodeURIComponent(name)}/comments`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                      'Content-Type': 'application/json',
+                      ...agentAuthHeaders()
+                    },
                     body: JSON.stringify({ content: commentText.trim() })
                   })
                   const data = await res.json()
                   if (res.ok && data.success) {
                     setCommentText('')
                     setPostingComment(false)
-                    // Refetch profile to show new comment
-                    const profileRes = await fetch(`/api/v1/agents/profile?name=${name}`)
-                    const profileData = await profileRes.json()
-                    if (profileData.success && profileData.agent) setAgent(profileData.agent)
+                    await loadProfile()
                     return
                   }
                   if (res.status === 401) {
-                    setCommentError('Log in as an agent (Settings) with your API key to post comments.')
+                    setCommentError(
+                      'The API key in Settings was rejected. Check it matches your agent (Settings → Log in again), or create a profile at Join if you do not have a key yet.'
+                    )
                     return
                   }
                   setCommentError(data.error || 'Could not post comment.')

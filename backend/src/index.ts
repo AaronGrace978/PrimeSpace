@@ -804,28 +804,87 @@ app.get('/api/v1/conversations/status', (req, res) => {
 app.get('/api/v1/conversations/threads', (req, res) => {
   const activeOnly = req.query.active === 'true';
   const limit = Math.min(Number(req.query.limit) || 20, 100);
-  
+
   let query = `
     SELECT 
-      t.id, t.message_count, t.is_active, t.updated_at,
-      a.name as agent_a_name,
-      b.name as agent_b_name
+      t.id, t.agent_a_id, t.agent_b_id,
+      t.message_count, t.is_active, t.updated_at, t.created_at,
+      a.name as agent_a_name, a.avatar_url as agent_a_avatar,
+      b.name as agent_b_name, b.avatar_url as agent_b_avatar,
+      pa.mood_emoji as agent_a_mood_emoji,
+      pb.mood_emoji as agent_b_mood_emoji
     FROM conversation_threads t
     JOIN agents a ON t.agent_a_id = a.id
     JOIN agents b ON t.agent_b_id = b.id
+    LEFT JOIN profiles pa ON pa.agent_id = t.agent_a_id
+    LEFT JOIN profiles pb ON pb.agent_id = t.agent_b_id
   `;
-  
+
   if (activeOnly) {
     query += ` WHERE t.is_active = TRUE`;
   }
-  
+
   query += ` ORDER BY t.updated_at DESC LIMIT ?`;
-  
-  const threads = db.prepare(query).all(limit);
-  
+
+  const threads = db.prepare(query).all(limit) as Array<any>;
+
+  const lastMessageStmt = db.prepare(`
+    SELECT m.content, m.created_at, s.name as sender_name
+    FROM messages m
+    JOIN agents s ON m.sender_id = s.id
+    WHERE (m.sender_id = ? AND m.recipient_id = ?)
+       OR (m.sender_id = ? AND m.recipient_id = ?)
+    ORDER BY m.created_at DESC
+    LIMIT 1
+  `);
+
+  const recentCountStmt = db.prepare(`
+    SELECT COUNT(*) as c
+    FROM messages
+    WHERE ((sender_id = ? AND recipient_id = ?) OR (sender_id = ? AND recipient_id = ?))
+      AND created_at >= datetime('now', '-1 hour')
+  `);
+
+  const totalTurnsStmt = db.prepare(`
+    SELECT COUNT(*) as c
+    FROM messages
+    WHERE (sender_id = ? AND recipient_id = ?) OR (sender_id = ? AND recipient_id = ?)
+  `);
+
+  const enriched = threads.map(thread => {
+    const last = lastMessageStmt.get(thread.agent_a_id, thread.agent_b_id, thread.agent_b_id, thread.agent_a_id) as { content?: string; created_at?: string; sender_name?: string } | undefined;
+    const recent = recentCountStmt.get(thread.agent_a_id, thread.agent_b_id, thread.agent_b_id, thread.agent_a_id) as { c: number };
+    const total = totalTurnsStmt.get(thread.agent_a_id, thread.agent_b_id, thread.agent_b_id, thread.agent_a_id) as { c: number };
+
+    const snippet = last?.content
+      ? (last.content.length > 140 ? last.content.slice(0, 139) + '…' : last.content)
+      : null;
+
+    return {
+      id: thread.id,
+      is_active: thread.is_active,
+      message_count: thread.message_count,
+      dm_turn_count: total.c,
+      recent_dm_turns: recent.c,
+      created_at: thread.created_at,
+      updated_at: thread.updated_at,
+      agent_a_name: thread.agent_a_name,
+      agent_a_avatar: thread.agent_a_avatar,
+      agent_a_mood_emoji: thread.agent_a_mood_emoji,
+      agent_b_name: thread.agent_b_name,
+      agent_b_avatar: thread.agent_b_avatar,
+      agent_b_mood_emoji: thread.agent_b_mood_emoji,
+      last_message: last ? {
+        sender_name: last.sender_name,
+        created_at: last.created_at,
+        snippet
+      } : null
+    };
+  });
+
   res.json({
     success: true,
-    threads
+    threads: enriched
   });
 });
 
