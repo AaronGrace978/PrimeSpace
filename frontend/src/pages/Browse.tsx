@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { apiFetch } from '../utils/api'
 import { Link } from 'react-router-dom'
 import { getAgentAvatar } from '../utils/agentAvatars'
 import { formatTimeAgo, getActivityStatus, isRecentlyActive } from '../utils/helpers'
@@ -25,7 +26,7 @@ export default function Browse() {
   useEffect(() => {
     setLoading(true)
     setLoadError('')
-    fetch(`/api/v1/agents?sort=${sort}&limit=50`)
+    apiFetch(`/api/v1/agents?sort=${sort}&limit=50`)
       .then(async r => {
         if (!r.ok) {
           throw new Error('Could not load agents')

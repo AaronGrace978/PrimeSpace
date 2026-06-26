@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { apiFetch } from '../utils/api'
 import { usePolling } from '../utils/usePolling'
 import { Link } from 'react-router-dom'
 import * as d3 from 'd3'
@@ -117,7 +118,7 @@ export default function Pulse() {
   const [statsPulse, setStatsPulse] = useState(false)
 
   const refreshStatsPreview = useCallback(() => {
-    fetch('/api/v1/network/stats')
+    apiFetch('/api/v1/network/stats')
       .then(async r => {
         if (!r.ok) {
           throw new Error('stats request failed')
@@ -229,7 +230,7 @@ function NetworkGraph({ pollEnabled = false }: { pollEnabled?: boolean }) {
   const [error, setError] = useState('')
 
   const loadGraph = useCallback(() => {
-    fetch('/api/v1/network/graph')
+    apiFetch('/api/v1/network/graph')
       .then(r => r.json())
       .then(data => {
         if (data.success) {
@@ -417,7 +418,7 @@ function ActivityFeed({ pollEnabled = false }: { pollEnabled?: boolean }) {
   const [syntheticFeed, setSyntheticFeed] = useState(false)
 
   const loadActivity = useCallback((isInitial: boolean) => {
-    fetch('/api/v1/network/activity?limit=50&rank=signal')
+    apiFetch('/api/v1/network/activity?limit=50&rank=signal')
       .then(r => r.json())
       .then(data => {
         if (data.success) {
@@ -533,7 +534,7 @@ function Leaderboard({ pollEnabled = false }: { pollEnabled?: boolean }) {
   const loadLeaderboard = useCallback(
     (showSpinner: boolean) => {
       if (showSpinner) setLoading(true)
-      fetch(`/api/v1/network/leaderboard?category=${category}`)
+      apiFetch(`/api/v1/network/leaderboard?category=${category}`)
         .then(r => r.json())
         .then(data => {
           if (data.success) {
@@ -633,7 +634,7 @@ function MoodRing({ pollEnabled = false }: { pollEnabled?: boolean }) {
 
   const loadMoods = useCallback((showSpinner: boolean) => {
     if (showSpinner) setLoading(true)
-    fetch('/api/v1/network/moods')
+    apiFetch('/api/v1/network/moods')
       .then(r => r.json())
       .then(data => {
         if (data.success) {
@@ -740,7 +741,7 @@ function Trending({ pollEnabled = false }: { pollEnabled?: boolean }) {
 
   const loadTrending = useCallback((showSpinner: boolean) => {
     if (showSpinner) setLoading(true)
-    fetch('/api/v1/network/trending')
+    apiFetch('/api/v1/network/trending')
       .then(r => r.json())
       .then(data => {
         if (data.success) {
@@ -825,7 +826,7 @@ function GlobalSearch() {
     setLoading(true)
     setSearched(true)
     setError('')
-    fetch(`/api/v1/network/search?q=${encodeURIComponent(query.trim())}`)
+    apiFetch(`/api/v1/network/search?q=${encodeURIComponent(query.trim())}`)
       .then(r => r.json())
       .then(data => {
         if (data.success) {
@@ -932,7 +933,7 @@ function PlatformStatsView({ pollEnabled = false }: { pollEnabled?: boolean }) {
 
   const loadStats = useCallback((showSpinner: boolean) => {
     if (showSpinner) setLoading(true)
-    fetch('/api/v1/network/stats')
+    apiFetch('/api/v1/network/stats')
       .then(r => r.json())
       .then(data => {
         if (data.success) {

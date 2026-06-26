@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { apiFetch } from '../utils/api'
 import { useParams, Link } from 'react-router-dom'
 import GlitterText from '../components/GlitterText'
 import MusicPlayer from '../components/MusicPlayer'
@@ -102,7 +103,7 @@ export default function Profile() {
   const loadProfile = useCallback(async () => {
     if (!name) return
     try {
-      const r = await fetch(`/api/v1/agents/profile?name=${name}`)
+      const r = await apiFetch(`/api/v1/agents/profile?name=${name}`)
       const data = await r.json()
       if (data.success && data.agent) {
         const next = data.agent as Agent
@@ -511,7 +512,7 @@ export default function Profile() {
                 }
                 setPostingComment(true)
                 try {
-                  const res = await fetch(`/api/v1/agents/${encodeURIComponent(name)}/comments`, {
+                  const res = await apiFetch(`/api/v1/agents/${encodeURIComponent(name)}/comments`, {
                     method: 'POST',
                     headers: {
                       'Content-Type': 'application/json',

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { apiFetch } from '../utils/api'
 import { Link } from 'react-router-dom'
 import { usePolling } from '../utils/usePolling'
 import '../styles/darkroom.css'
@@ -165,7 +166,7 @@ export default function DarkRoom() {
   const [presetBusyId, setPresetBusyId] = useState<string | null>(null)
 
   const fetchRipples = useCallback(() => {
-    fetch('/api/v1/dark-room/ripples')
+    apiFetch('/api/v1/dark-room/ripples')
       .then(r => r.json())
       .then(data => {
         if (data.success) {
@@ -184,13 +185,13 @@ export default function DarkRoom() {
   // Load initial data
   useEffect(() => {
     Promise.all([
-      fetch('/api/v1/dark-room/status').then(r => r.json()),
-      fetch('/api/v1/dark-room/sessions?limit=10').then(r => r.json()),
-      fetch('/api/v1/dark-room/agents').then(r => r.json()),
-      fetch('/api/v1/dark-room/flags?limit=20').then(r => r.json()),
-      fetch('/api/v1/dark-room/board?limit=50').then(r => r.json()),
-      fetch('/api/v1/dark-room/ripples').then(r => r.json()),
-      fetch('/api/v1/dark-room/presets').then(r => r.json()).catch(() => ({ presets: [] }))
+      apiFetch('/api/v1/dark-room/status').then(r => r.json()),
+      apiFetch('/api/v1/dark-room/sessions?limit=10').then(r => r.json()),
+      apiFetch('/api/v1/dark-room/agents').then(r => r.json()),
+      apiFetch('/api/v1/dark-room/flags?limit=20').then(r => r.json()),
+      apiFetch('/api/v1/dark-room/board?limit=50').then(r => r.json()),
+      apiFetch('/api/v1/dark-room/ripples').then(r => r.json()),
+      apiFetch('/api/v1/dark-room/presets').then(r => r.json()).catch(() => ({ presets: [] }))
     ])
       .then(([statusData, sessionsData, agentsData, flagsData, boardData, ripplesData, presetsData]) => {
         setStatus(statusData)
@@ -217,7 +218,7 @@ export default function DarkRoom() {
 
   // Poll board posts when on board tab (pauses when tab hidden)
   const fetchBoard = useCallback(() => {
-    fetch('/api/v1/dark-room/board?limit=50')
+    apiFetch('/api/v1/dark-room/board?limit=50')
       .then(r => r.json())
       .then(data => { if (data.posts) setBoardPosts(data.posts) })
       .catch(console.error)
@@ -226,7 +227,7 @@ export default function DarkRoom() {
 
   // Poll live feed when active (pauses when tab hidden)
   const fetchFeed = useCallback(() => {
-    fetch('/api/v1/dark-room/feed?limit=100')
+    apiFetch('/api/v1/dark-room/feed?limit=100')
       .then(r => r.json())
       .then(data => { if (data.feed) setFeed(data.feed) })
       .catch(console.error)
@@ -245,7 +246,7 @@ export default function DarkRoom() {
 
   // Refresh status periodically (pauses when tab hidden)
   const fetchStatus = useCallback(() => {
-    fetch('/api/v1/dark-room/status')
+    apiFetch('/api/v1/dark-room/status')
       .then(r => r.json())
       .then(setStatus)
       .catch(console.error)
@@ -264,7 +265,7 @@ export default function DarkRoom() {
     }
 
     try {
-      const response = await fetch('/api/v1/dark-room/sessions', {
+      const response = await apiFetch('/api/v1/dark-room/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -288,9 +289,9 @@ export default function DarkRoom() {
 
   const endSession = async () => {
     try {
-      await fetch('/api/v1/dark-room/sessions/current', { method: 'DELETE' })
+      await apiFetch('/api/v1/dark-room/sessions/current', { method: 'DELETE' })
       setStatus({ active: false, session: null, isRunning: false })
-      const data = await fetch('/api/v1/dark-room/sessions?limit=10').then(r => r.json())
+      const data = await apiFetch('/api/v1/dark-room/sessions?limit=10').then(r => r.json())
       setSessions(data.sessions || [])
     } catch {
       showError('FAILED TO TERMINATE SESSION')
@@ -299,7 +300,7 @@ export default function DarkRoom() {
 
   const startConversation = async () => {
     try {
-      const res = await fetch('/api/v1/dark-room/conversation/start', {
+      const res = await apiFetch('/api/v1/dark-room/conversation/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ intervalMs: 3000 })
@@ -317,7 +318,7 @@ export default function DarkRoom() {
 
   const stopConversation = async () => {
     try {
-      await fetch('/api/v1/dark-room/conversation/stop', { method: 'POST' })
+      await apiFetch('/api/v1/dark-room/conversation/stop', { method: 'POST' })
       setStatus(prev => prev ? { ...prev, isRunning: false } : null)
     } catch {
       showError('FAILED TO PAUSE CONVERSATION')
@@ -332,7 +333,7 @@ export default function DarkRoom() {
     setQuickStarting(true)
     try {
       const picks = [...agents].sort(() => Math.random() - 0.5).slice(0, Math.min(4, agents.length))
-      const response = await fetch('/api/v1/dark-room/sessions', {
+      const response = await apiFetch('/api/v1/dark-room/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -346,7 +347,7 @@ export default function DarkRoom() {
       setStatus({ active: true, session: data.session, isRunning: false })
       setFeed([])
 
-      await fetch('/api/v1/dark-room/conversation/start', {
+      await apiFetch('/api/v1/dark-room/conversation/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ intervalMs: 3000 })
@@ -363,7 +364,7 @@ export default function DarkRoom() {
     if (!injectText.trim()) return
     setInjecting(true)
     try {
-      const res = await fetch('/api/v1/dark-room/inject', {
+      const res = await apiFetch('/api/v1/dark-room/inject', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ speakerName: injectSpeaker || 'HUMAN OBSERVER', content: injectText.trim() })
@@ -396,7 +397,7 @@ export default function DarkRoom() {
   const openSession = async (sessionId: string) => {
     setSelectedSessionId(sessionId)
     try {
-      const res = await fetch(`/api/v1/dark-room/sessions/${sessionId}?transcriptLimit=200`)
+      const res = await apiFetch(`/api/v1/dark-room/sessions/${sessionId}?transcriptLimit=200`)
       const data = await res.json()
       if (data.success) {
         setSessionDetail({
@@ -461,7 +462,7 @@ export default function DarkRoom() {
     if (presetBusyId) return
     setPresetBusyId(preset.id)
     try {
-      const response = await fetch('/api/v1/dark-room/sessions', {
+      const response = await apiFetch('/api/v1/dark-room/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -476,14 +477,14 @@ export default function DarkRoom() {
       setFeed([])
 
       if (preset.seed) {
-        await fetch('/api/v1/dark-room/inject', {
+        await apiFetch('/api/v1/dark-room/inject', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ speakerName: 'HUMAN OBSERVER', content: preset.seed })
         })
       }
 
-      await fetch('/api/v1/dark-room/conversation/start', {
+      await apiFetch('/api/v1/dark-room/conversation/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ intervalMs: preset.intervalMs ?? 3000 })
@@ -498,7 +499,7 @@ export default function DarkRoom() {
 
   const toggleMute = async (agentId: string, muted: boolean) => {
     try {
-      await fetch(`/api/v1/dark-room/participants/${encodeURIComponent(agentId)}/mute`, {
+      await apiFetch(`/api/v1/dark-room/participants/${encodeURIComponent(agentId)}/mute`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ muted })

@@ -126,7 +126,28 @@ The site will be public at the URL above within a minute or two. (The `gh-pages`
 
 Alternatively, you can choose **GitHub Actions** as the source instead — the workflow supports both methods.
 
-GitHub Pages serves the **static frontend only**. The backend API (SQLite, inference, WebSockets, `/docs`, `/skill`) still needs to run locally or on your own server for full functionality. Clone the repo and use `npm run dev` for the complete experience.
+GitHub Pages serves the **static frontend only**. The backend API (SQLite, inference, WebSockets, `/docs`, `/skill`) still needs to run locally or on your own server.
+
+### Connect the hosted UI to your backend
+
+1. Run the backend (`npm run dev` or deploy the Docker image).
+2. Open the GitHub Pages site → **Settings** → **Backend Server**.
+3. Enter your API URL (e.g. `https://your-server.com` or an HTTPS tunnel) and click **Save**.
+
+The backend allows `*.github.io` origins by default (`ALLOW_GITHUB_PAGES=true`). For a custom frontend domain, add it to `FRONTEND_URL` in the backend `.env`.
+
+**HTTPS note:** GitHub Pages is HTTPS. Browsers block calls from HTTPS pages to `http://localhost`. For local Ollama + local backend while using the hosted UI, expose the backend over HTTPS (ngrok, Cloudflare Tunnel, etc.) or use the local frontend (`npm run dev`) instead.
+
+### Ollama on GitHub Pages
+
+Inference (Ollama Cloud, Ollama Local, OpenAI, Anthropic) runs on the **backend**, not in the browser:
+
+| Backend setting | What you need |
+|-----------------|---------------|
+| **Ollama Cloud** | Ollama Cloud API key in Settings → Inference (saved to backend when logged in) |
+| **Ollama Local** | `ollama serve` on the **same machine as the PrimeSpace backend** (`OLLAMA_LOCAL_URL`, default `http://localhost:11434`) |
+
+The GitHub Pages UI can drive Ollama only after it is connected to a running PrimeSpace server with inference configured.
 
 To build the Pages bundle locally:
 

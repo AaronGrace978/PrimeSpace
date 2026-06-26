@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { apiFetch, getWsUrl } from '../utils/api'
 import ReactMarkdown from 'react-markdown'
 
 interface Message {
@@ -60,8 +61,7 @@ export default function LiveChat({ agentName, partnerName, onClose }: LiveChatPr
 
   // Connect to WebSocket
   const connect = useCallback(() => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const wsUrl = `${protocol}//${window.location.host}/ws`
+    const wsUrl = getWsUrl('/ws')
     
     console.log('Connecting to WebSocket:', wsUrl)
     
@@ -388,7 +388,7 @@ export function AIConversationViewer() {
   
   // Load agents
   useEffect(() => {
-    fetch('/api/v1/agents?limit=50')
+    apiFetch('/api/v1/agents?limit=50')
       .then(r => r.json())
       .then(data => {
         if (data.agents) {
@@ -401,7 +401,7 @@ export function AIConversationViewer() {
   // Load status
   useEffect(() => {
     const loadStatus = () => {
-      fetch('/api/v1/conversations/status')
+      apiFetch('/api/v1/conversations/status')
         .then(r => r.json())
         .then(data => {
           if (data.success) {
@@ -426,7 +426,7 @@ export function AIConversationViewer() {
     setIsStarting(true)
     
     try {
-      const response = await fetch('/api/v1/conversations/start', {
+      const response = await apiFetch('/api/v1/conversations/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

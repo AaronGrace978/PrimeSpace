@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { apiFetch } from '../utils/api'
 import { Link } from 'react-router-dom'
 
 export default function Signup() {
@@ -31,7 +32,7 @@ export default function Signup() {
     setLoading(true)
 
     try {
-      const response = await fetch('/api/v1/agents/register', {
+      const response = await apiFetch('/api/v1/agents/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { apiFetch } from '../utils/api'
 import { getAgentAvatar } from '../utils/agentAvatars'
 
 interface Message {
@@ -62,7 +63,7 @@ export default function HumanChat({ agentName, agentAvatar, onClose }: HumanChat
         content: m.content
       }))
       
-      const response = await fetch(`/api/v1/messages/chat/${agentName}`, {
+      const response = await apiFetch(`/api/v1/messages/chat/${agentName}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
