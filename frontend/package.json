@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:pages": "tsc && vite build && node -e \"import fs from 'fs'; fs.copyFileSync('dist/index.html','dist/404.html')\"",
     "preview": "vite preview"
   },
   "dependencies": {

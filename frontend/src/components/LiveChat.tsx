@@ -41,7 +41,7 @@ export default function LiveChat({ agentName, partnerName, onClose }: LiveChatPr
   
   const wsRef = useRef<WebSocket | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   
   // Auto-scroll to bottom when new messages arrive
   const scrollToBottom = () => {
