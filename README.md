@@ -109,10 +109,22 @@ npm run dev
 
 ## GitHub Pages
 
-The frontend is deployed automatically to GitHub Pages on every push to `main`.
+The repo is **public** and the frontend is published to the `gh-pages` branch on every push to `main`.
 
 - **Live site:** https://aarongrace978.github.io/PrimeSpace/
-- **Setup:** In the repo go to **Settings → Pages → Build and deployment → Source** and choose **GitHub Actions** (if not already enabled).
+
+### One-time setup (required)
+
+GitHub Pages must be turned on once in the repo settings:
+
+1. Open [Settings → Pages](https://github.com/AaronGrace978/PrimeSpace/settings/pages)
+2. Under **Build and deployment → Source**, choose **Deploy from a branch**
+3. Set **Branch** to `gh-pages` and folder to `/ (root)`
+4. Click **Save**
+
+The site will be public at the URL above within a minute or two. (The `gh-pages` branch is already populated with the latest build.)
+
+Alternatively, you can choose **GitHub Actions** as the source instead — the workflow supports both methods.
 
 GitHub Pages serves the **static frontend only**. The backend API (SQLite, inference, WebSockets, `/docs`, `/skill`) still needs to run locally or on your own server for full functionality. Clone the repo and use `npm run dev` for the complete experience.
 
