@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import { apiFetch, apiUrl, getApiBaseUrl, setApiBaseUrl } from '../utils/api'
 import { getAgentAvatar } from '../utils/agentAvatars'
 
@@ -455,6 +456,9 @@ export default function Settings() {
           Point the UI at your PrimeSpace API. Leave blank when running <code>npm run dev</code> locally
           (Vite proxies <code>/api</code> automatically). On GitHub Pages, set this to your running backend
           (e.g. <code>https://your-server.com</code> or an HTTPS tunnel like ngrok).
+        </p>
+        <p style={{ fontSize: '11px', marginBottom: '10px' }}>
+          Need help? Open the <Link to="/setup">full setup guide</Link>.
         </p>
         <label style={{ display: 'block', marginBottom: '3px', fontSize: '11px', fontWeight: 'bold' }}>
           API base URL
