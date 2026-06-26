@@ -40,11 +40,45 @@ body {
   margin: 0;
   padding: 0;
   font-family: var(--font-primary);
-  background: var(--secondary-bg);
+  background:
+    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.25) 1px, transparent 0) 0 0/8px 8px,
+    linear-gradient(180deg, #d3d3d3 0%, #bdbdbd 100%);
   color: var(--text-primary);
   min-height: 100vh;
   font-size: 12px;
   line-height: 1.4;
+}
+
+.app {
+  min-height: 100vh;
+}
+
+.retro-status-bar {
+  background: #001b36;
+  color: #99ccff;
+  border-bottom: 1px solid #244d77;
+  font-size: 10px;
+  font-weight: bold;
+  letter-spacing: 0.02em;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+}
+
+.retro-status-bar a {
+  color: #ffff99;
+  text-decoration: none;
+}
+
+.retro-status-bar a:hover {
+  color: #ffffff;
+  text-decoration: underline;
+}
+
+.retro-divider {
+  opacity: 0.6;
 }
 
 a {
@@ -66,6 +100,7 @@ a:visited {
   background: linear-gradient(180deg, #4A7CAC 0%, var(--header-bg) 100%);
   border-bottom: 1px solid var(--header-dark);
   padding: 0;
+  box-shadow: inset 0 1px 0 #87b0d5;
 }
 
 .header-content {
@@ -118,6 +153,7 @@ a:visited {
   padding: 6px 12px;
   border-left: 1px solid rgba(255, 255, 255, 0.3);
   transition: background 0.2s;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
 }
 
 .nav a:first-child {
@@ -131,7 +167,7 @@ a:visited {
 }
 
 .nav a.active {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.25);
   color: #FFFFFF;
 }
 
@@ -150,12 +186,15 @@ a:visited {
   padding: 15px 10px;
   background: var(--primary-bg);
   min-height: calc(100vh - 150px);
+  border-left: 1px solid #8f8f8f;
+  border-right: 1px solid #8f8f8f;
 }
 
 /* Cards - Classic MySpace boxes */
 .card {
   background: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: 1px solid #9d9d9d;
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.14);
   padding: 10px;
   margin-bottom: 15px;
 }
@@ -165,10 +204,11 @@ a:visited {
   font-size: 12px;
   font-weight: bold;
   color: var(--text-header);
-  background: var(--table-header);
+  background: linear-gradient(180deg, #7aa8d4 0%, #4f82b3 100%);
   margin: -10px -10px 10px -10px;
   padding: 5px 10px;
-  border-bottom: 1px solid var(--border-dark);
+  border-bottom: 1px solid #325d85;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
 }
 
 /* Classic text styling - no glitter, just bold/colored text */
@@ -205,6 +245,7 @@ a:visited {
   cursor: pointer;
   text-decoration: none;
   display: inline-block;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
 .btn:hover {
@@ -455,6 +496,27 @@ input:focus, textarea:focus, select:focus {
 .marquee-content {
   display: inline-block;
   animation: marquee 20s linear infinite;
+}
+
+.global-marquee {
+  max-width: 960px;
+  margin: 0 auto;
+  overflow: hidden;
+  white-space: nowrap;
+  background: #0f3a66;
+  color: #ffffff;
+  border-left: 1px solid #8f8f8f;
+  border-right: 1px solid #8f8f8f;
+  border-bottom: 1px solid #092746;
+  padding: 4px 0;
+}
+
+.global-marquee-content {
+  display: inline-block;
+  padding-left: 100%;
+  animation: marquee 24s linear infinite;
+  font-weight: bold;
+  font-size: 10px;
 }
 
 @keyframes marquee {
@@ -714,6 +776,7 @@ input:focus, textarea:focus, select:focus {
   color: var(--text-header);
   font-size: 10px;
   border-top: 1px solid #4A7CAC;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
 .footer a {
@@ -726,6 +789,11 @@ input:focus, textarea:focus, select:focus {
 
 /* Responsive */
 @media (max-width: 768px) {
+  .retro-status-bar {
+    flex-wrap: wrap;
+    text-align: center;
+  }
+
   .profile-layout {
     grid-template-columns: 1fr;
   }
@@ -752,6 +820,12 @@ input:focus, textarea:focus, select:focus {
   .hero h1 {
     font-size: 18px;
   }
+
+  .main-content,
+  .global-marquee {
+    border-left: none;
+    border-right: none;
+  }
   
   .stats {
     flex-direction: column;
@@ -771,6 +845,56 @@ input:focus, textarea:focus, select:focus {
   .profile-signal-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* Setup guide page */
+.setup-guide-page {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.setup-guide-hero p {
+  margin-top: 0;
+  margin-bottom: 10px;
+  color: #333;
+}
+
+.setup-guide-quick-links {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.setup-guide-quick-links a {
+  font-size: 10px;
+  font-weight: bold;
+  border: 1px solid #8fa9c4;
+  background: #f5faff;
+  padding: 4px 8px;
+  text-decoration: none;
+}
+
+.setup-guide-quick-links a:hover {
+  background: #e7f3ff;
+  text-decoration: underline;
+}
+
+.setup-guide-section ol,
+.setup-guide-section ul {
+  padding-left: 18px;
+}
+
+.setup-guide-section li {
+  margin-bottom: 5px;
+}
+
+.setup-guide-section pre {
+  background: #f3f3f3;
+  border: 1px solid #c8c8c8;
+  padding: 8px;
+  font-size: 11px;
+  overflow-x: auto;
 }
 
 /* Loading spinner - Classic */

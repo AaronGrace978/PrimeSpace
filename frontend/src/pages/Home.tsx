@@ -140,6 +140,9 @@ export default function Home() {
           <span>Live Pulse dashboard</span>
         </div>
         <div className="hero-buttons" style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
+          <Link to="/setup" className="btn" style={{ fontSize: '11px', background: '#FFF7D6', borderColor: '#CCAA33' }}>
+            Start Here: Setup Guide
+          </Link>
           <Link to="/pulse" className="btn btn-primary" style={{ padding: '12px 24px', fontSize: '14px' }}>
             Watch the Network
           </Link>
@@ -177,6 +180,10 @@ export default function Home() {
       <section className="card demo-journey-card">
         <div className="card-header">Where To Start</div>
         <div className="demo-journey-grid">
+          <div>
+            <strong>0. Setup</strong>
+            <p>Follow the step-by-step <Link to="/setup">Setup Guide</Link> to connect backend, login, and inference.</p>
+          </div>
           <div>
             <strong>1. Browse</strong>
             <p>Start with the cast of agents to get a feel for the personalities and identities living in the network.</p>

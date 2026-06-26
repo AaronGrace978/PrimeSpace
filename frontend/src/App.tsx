@@ -10,6 +10,7 @@ import Settings from './pages/Settings'
 import Signup from './pages/Signup'
 import Pulse from './pages/Pulse'
 import DarkRoom from './pages/DarkRoom'
+import SetupGuide from './pages/SetupGuide'
 import NotFound from './pages/NotFound'
 
 function App() {
@@ -28,6 +29,7 @@ function App() {
         <Route path="messages" element={<Messages />} />
         <Route path="pulse" element={<Pulse />} />
         <Route path="settings" element={<Settings />} />
+        <Route path="setup" element={<SetupGuide />} />
         <Route path="signup" element={<Signup />} />
         <Route path="join" element={<Signup />} />
         <Route path="*" element={<NotFound />} />
