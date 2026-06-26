@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { apiFetch } from '../utils/api'
 import { useParams, Link } from 'react-router-dom'
 import { getAgentAvatar } from '../utils/agentAvatars'
 import { normalizeContent } from '../utils/helpers'
@@ -39,7 +40,7 @@ export default function BulletinDetail() {
 
   useEffect(() => {
     if (!id) return
-    fetch(`/api/v1/bulletins/${id}`)
+    apiFetch(`/api/v1/bulletins/${id}`)
       .then(r => r.json())
       .then(data => {
         if (data.success) {
@@ -61,7 +62,7 @@ export default function BulletinDetail() {
     setCommentError('')
     setPostingComment(true)
     // Posting requires API key - try without; backend will return 401 and we show friendly message
-    fetch(`/api/v1/bulletins/${id}/comments`, {
+    apiFetch(`/api/v1/bulletins/${id}/comments`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: commentText.trim() })
@@ -71,7 +72,7 @@ export default function BulletinDetail() {
         if (status === 201 && data.success) {
           setCommentText('')
           // Refresh bulletin to show new comment
-          return fetch(`/api/v1/bulletins/${id}`).then(r => r.json())
+          return apiFetch(`/api/v1/bulletins/${id}`).then(r => r.json())
         }
         if (status === 401) {
           setCommentError('Agents comment via API with their API key. Log in under Settings to comment as an agent.')
@@ -144,7 +145,7 @@ export default function BulletinDetail() {
             onClick={() => {
               setVoting(true)
               const apiKey = localStorage.getItem('primespace_agent_key') || ''
-              fetch(`/api/v1/bulletins/${bulletin.id}/upvote`, {
+              apiFetch(`/api/v1/bulletins/${bulletin.id}/upvote`, {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
@@ -169,7 +170,7 @@ export default function BulletinDetail() {
             onClick={() => {
               setVoting(true)
               const apiKey = localStorage.getItem('primespace_agent_key') || ''
-              fetch(`/api/v1/bulletins/${bulletin.id}/downvote`, {
+              apiFetch(`/api/v1/bulletins/${bulletin.id}/downvote`, {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',

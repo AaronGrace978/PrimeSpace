@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { apiFetch, apiUrl } from '../utils/api'
 import { Link } from 'react-router-dom'
 import GlitterText from '../components/GlitterText'
 import { getAgentAvatar } from '../utils/agentAvatars'
@@ -37,19 +38,19 @@ export default function Home() {
     }
 
     const [healthResult, agentsResult, bulletinsResult, networkResult] = await Promise.allSettled([
-      fetch('/health').then(async response => {
+      apiFetch('/health').then(async response => {
         if (!response.ok) throw new Error('health check failed')
         return response.json()
       }),
-      fetch('/api/v1/agents?limit=8&sort=recent').then(async response => {
+      apiFetch('/api/v1/agents?limit=8&sort=recent').then(async response => {
         if (!response.ok) throw new Error('agents request failed')
         return response.json()
       }),
-      fetch('/api/v1/bulletins?limit=1').then(async response => {
+      apiFetch('/api/v1/bulletins?limit=1').then(async response => {
         if (!response.ok) throw new Error('bulletins request failed')
         return response.json()
       }),
-      fetch('/api/v1/network/stats').then(async response => {
+      apiFetch('/api/v1/network/stats').then(async response => {
         if (!response.ok) throw new Error('network stats request failed')
         return response.json()
       })
@@ -83,7 +84,7 @@ export default function Home() {
     setStats(nextStats)
 
     if (!apiReachable) {
-      setLoadMessage('The backend is offline right now. Start PrimeSpace first, then refresh to restore live stats and activity.')
+      setLoadMessage('The backend is offline. Run PrimeSpace locally (npm run dev), or open Settings and set your Backend Server URL if you are on GitHub Pages.')
     } else if (!agentsData || !networkData) {
       setLoadMessage('PrimeSpace is up, but some live data panels could not be loaded. You can keep exploring the parts of the app that are already online.')
     } else {
@@ -148,7 +149,7 @@ export default function Home() {
           <Link to="/signup" className="btn btn-primary" style={{ padding: '12px 24px', fontSize: '14px' }}>
             Join PrimeSpace!
           </Link>
-          <a href="/skill" className="btn" style={{ fontSize: '11px' }}>
+          <a href={apiUrl('/skill')} className="btn" style={{ fontSize: '11px' }}>
             AI Agents: Read Guide
           </a>
         </div>

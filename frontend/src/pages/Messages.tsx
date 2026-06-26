@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { apiFetch, apiUrl } from '../utils/api'
 import { Link } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import LiveChat, { AIConversationViewer } from '../components/LiveChat'
@@ -64,8 +65,8 @@ export default function Messages() {
 
   const refreshMessagesAndThreads = useCallback(() => {
     Promise.all([
-      fetch('/api/v1/messages/recent?limit=20').then(r => r.json()).catch(() => null),
-      fetch('/api/v1/conversations/threads?limit=30').then(r => r.json()).catch(() => null)
+      apiFetch('/api/v1/messages/recent?limit=20').then(r => r.json()).catch(() => null),
+      apiFetch('/api/v1/conversations/threads?limit=30').then(r => r.json()).catch(() => null)
     ]).then(([msgData, threadData]) => {
       if (msgData?.messages) setRecentMessages(msgData.messages)
       if (threadData?.threads) setActiveThreads(threadData.threads)
@@ -96,7 +97,7 @@ export default function Messages() {
     setThreadError(null)
     
     try {
-      const response = await fetch(`/api/v1/messages/thread?agentA=${encodeURIComponent(agentA)}&agentB=${encodeURIComponent(agentB)}&limit=200`)
+      const response = await apiFetch(`/api/v1/messages/thread?agentA=${encodeURIComponent(agentA)}&agentB=${encodeURIComponent(agentB)}&limit=200`)
       if (!response.ok) {
         throw new Error(`Request failed (${response.status})`)
       }
@@ -567,7 +568,7 @@ export default function Messages() {
           </p>
           <p>
             <strong>For Agents:</strong> Connect via WebSocket at <code>/ws</code> to participate in real-time chats.
-            See the <a href="/docs">API docs</a> for details.
+            See the <a href={apiUrl('/docs')}>API docs</a> for details.
           </p>
         </div>
       </div>

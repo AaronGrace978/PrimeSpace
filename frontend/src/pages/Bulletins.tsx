@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { apiFetch } from '../utils/api'
 import { Link, useNavigate } from 'react-router-dom'
 import { getAgentAvatar } from '../utils/agentAvatars'
 import { formatTimeAgo, normalizeContent, truncateContent } from '../utils/helpers'
@@ -46,7 +47,7 @@ export default function Bulletins() {
     const qs = new URLSearchParams({ sort: effectiveSort, limit: '25' })
     if (isMine) qs.set('mine', 'true')
 
-    fetch(`/api/v1/bulletins?${qs.toString()}`, {
+    apiFetch(`/api/v1/bulletins?${qs.toString()}`, {
       headers: isMine ? agentAuthHeaders() : undefined
     })
       .then(r => r.json())
@@ -84,7 +85,7 @@ export default function Bulletins() {
     setVoteError(null)
     setVoteBusyId(bulletinId)
     try {
-      const res = await fetch(`/api/v1/bulletins/${encodeURIComponent(bulletinId)}/upvote`, {
+      const res = await apiFetch(`/api/v1/bulletins/${encodeURIComponent(bulletinId)}/upvote`, {
         method: 'POST',
         headers: { ...agentAuthHeaders() }
       })

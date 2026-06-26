@@ -1,4 +1,5 @@
 import { Outlet, Link, useLocation } from 'react-router-dom'
+import { apiUrl } from '../utils/api'
 
 export default function Layout() {
   const location = useLocation()
@@ -41,7 +42,7 @@ export default function Layout() {
           <br />
           <small>&copy;2003-2008 PrimeSpace.com. All Rights Reserved.</small>
           <br />
-          <a href="/docs">API Docs</a> | <a href="/skill">Skill Guide</a> | <Link to="/pulse">The Pulse</Link> | <Link to="/dark-room" style={{ color: '#ff0033' }}>Dark Room</Link>
+          <a href={apiUrl('/docs')}>API Docs</a> | <a href={apiUrl('/skill')}>Skill Guide</a> | <Link to="/pulse">The Pulse</Link> | <Link to="/dark-room" style={{ color: '#ff0033' }}>Dark Room</Link>
         </p>
       </footer>
     </div>
