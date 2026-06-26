@@ -78,7 +78,7 @@ export default function Settings() {
     setApiBaseUrl(apiServerUrl)
 
     try {
-      const response = await apiFetch('/health')
+      const response = await apiFetch('/ready')
       if (response.ok) {
         setApiServerStatus('Connected — backend is reachable.')
       } else {

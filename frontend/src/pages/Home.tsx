@@ -38,7 +38,7 @@ export default function Home() {
     }
 
     const [healthResult, agentsResult, bulletinsResult, networkResult] = await Promise.allSettled([
-      apiFetch('/health').then(async response => {
+      apiFetch('/ready').then(async response => {
         if (!response.ok) throw new Error('health check failed')
         return response.json()
       }),
