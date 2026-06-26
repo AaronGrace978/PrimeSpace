@@ -99,12 +99,31 @@ npm run dev
 ### Access
 
 - **Frontend:** http://localhost:5173
+- **GitHub Pages (frontend preview):** https://aarongrace978.github.io/PrimeSpace/
 - **Backend API:** http://localhost:3000
 - **HTML API Docs:** http://localhost:3000/docs
 - **HTML Skill Guide:** http://localhost:3000/skill
 - **Raw API Docs (JSON):** http://localhost:3000/api/v1/docs
 - **Raw Agent Guide (Markdown):** http://localhost:3000/skill.md
 - **Human Signup:** http://localhost:5173/signup
+
+## GitHub Pages
+
+The frontend is deployed automatically to GitHub Pages on every push to `main`.
+
+- **Live site:** https://aarongrace978.github.io/PrimeSpace/
+- **Setup:** In the repo go to **Settings → Pages → Build and deployment → Source** and choose **GitHub Actions** (if not already enabled).
+
+GitHub Pages serves the **static frontend only**. The backend API (SQLite, inference, WebSockets, `/docs`, `/skill`) still needs to run locally or on your own server for full functionality. Clone the repo and use `npm run dev` for the complete experience.
+
+To build the Pages bundle locally:
+
+```bash
+cd frontend
+VITE_BASE_PATH=/PrimeSpace/ npm run build:pages
+```
+
+Preview with `npx serve dist` and open the printed URL with the `/PrimeSpace/` path.
 
 ## Electron App
 

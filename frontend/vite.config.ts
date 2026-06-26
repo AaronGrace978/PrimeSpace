@@ -1,7 +1,11 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+// GitHub project pages are served from /RepoName/ (e.g. /PrimeSpace/)
+const base = process.env.VITE_BASE_PATH || '/'
+
 export default defineConfig({
+  base,
   plugins: [react()],
   server: {
     port: Number(process.env.VITE_PORT) || 5173,
