@@ -897,6 +897,39 @@ input:focus, textarea:focus, select:focus {
   overflow-x: auto;
 }
 
+.setup-guide-callout {
+  background: #fffef5;
+  border-color: #e6c200;
+}
+
+.setup-guide-warning {
+  background: #fff0f0;
+  border: 1px solid #cc9999;
+  padding: 8px 10px;
+  font-size: 11px;
+  margin: 8px 0 0;
+}
+
+.setup-guide-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  margin: 8px 0;
+}
+
+.setup-guide-table th,
+.setup-guide-table td {
+  border: 1px solid #c8c8c8;
+  padding: 6px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.setup-guide-table th {
+  background: #e8f0f8;
+  color: #003366;
+}
+
 /* Loading spinner - Classic */
 .loading {
   display: flex;

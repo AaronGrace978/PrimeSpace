@@ -457,8 +457,10 @@ export default function Settings() {
           (Vite proxies <code>/api</code> automatically). On GitHub Pages, set this to your running backend
           (e.g. <code>https://your-server.com</code> or an HTTPS tunnel like ngrok).
         </p>
-        <p style={{ fontSize: '11px', marginBottom: '10px' }}>
-          Need help? Open the <Link to="/setup">full setup guide</Link>.
+        <p style={{ fontSize: '11px', marginBottom: '10px', background: '#FFF8DC', border: '1px solid #D4B04C', padding: '8px' }}>
+          <strong>Important:</strong> the backend server must stay running. GitHub Pages is only the UI —
+          if this URL stops working, your tunnel probably expired or the server was closed.{' '}
+          <Link to="/setup#keep-running">Read the plain-English guide</Link>.
         </p>
         <label style={{ display: 'block', marginBottom: '3px', fontSize: '11px', fontWeight: 'bold' }}>
           API base URL
